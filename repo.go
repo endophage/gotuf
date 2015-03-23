@@ -4,15 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
+	//"io"
 	"path"
 	"strings"
 	"time"
 
-	"github.com/flynn/go-tuf/data"
-	"github.com/flynn/go-tuf/keys"
-	"github.com/flynn/go-tuf/signed"
-	"github.com/flynn/go-tuf/util"
+	"github.com/endophage/go-tuf/data"
+	"github.com/endophage/go-tuf/keys"
+	"github.com/endophage/go-tuf/signed"
+	"github.com/endophage/go-tuf/util"
 )
 
 type CompressionType uint8
@@ -35,7 +35,7 @@ var snapshotManifests = []string{
 	"targets.json",
 }
 
-type targetsWalkFunc func(path string, target io.Reader) error
+type targetsWalkFunc func(path string, meta data.FileMeta) error
 
 type LocalStore interface {
 	GetMeta() (map[string]json.RawMessage, error)
@@ -403,14 +403,10 @@ func (r *Repo) AddTargetsWithExpires(paths []string, custom json.RawMessage, exp
 	for i, path := range paths {
 		normalizedPaths[i] = util.NormalizeTarget(path)
 	}
-	if err := r.local.WalkStagedTargets(normalizedPaths, func(path string, target io.Reader) (err error) {
-		meta, err := util.GenerateFileMeta(target, r.hashAlgorithms...)
-		if err != nil {
-			return err
-		}
-		if len(custom) > 0 {
-			meta.Custom = &custom
-		}
+	if err := r.local.WalkStagedTargets(normalizedPaths, func(path string, meta data.FileMeta) (err error) {
+		//		if len(custom) > 0 {
+		//			meta.Custom = &custom
+		//		}
 		t.Targets[util.NormalizeTarget(path)] = meta
 		return nil
 	}); err != nil {

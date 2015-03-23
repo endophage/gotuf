@@ -4,8 +4,8 @@ import (
 	"crypto/rand"
 	"errors"
 
-	"github.com/flynn/go-tuf/Godeps/_workspace/src/github.com/agl/ed25519"
-	"github.com/flynn/go-tuf/data"
+	"github.com/endophage/go-tuf/Godeps/_workspace/src/github.com/agl/ed25519"
+	"github.com/endophage/go-tuf/data"
 )
 
 var (

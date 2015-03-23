@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/flynn/go-tuf/data"
+	"github.com/endophage/go-tuf/data"
 )
 
 var ErrWrongLength = errors.New("wrong length")

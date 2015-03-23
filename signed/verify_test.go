@@ -4,11 +4,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/flynn/go-tuf/Godeps/_workspace/src/github.com/agl/ed25519"
-	"github.com/flynn/go-tuf/data"
-	"github.com/flynn/go-tuf/keys"
+	"github.com/endophage/go-tuf/Godeps/_workspace/src/github.com/agl/ed25519"
+	"github.com/endophage/go-tuf/data"
+	"github.com/endophage/go-tuf/keys"
 
-	. "github.com/flynn/go-tuf/Godeps/_workspace/src/gopkg.in/check.v1"
+	. "github.com/endophage/go-tuf/Godeps/_workspace/src/gopkg.in/check.v1"
 )
 
 // Hook up gocheck into the "go test" runner.
