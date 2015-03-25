@@ -1,15 +1,17 @@
 package dbstore
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
-	//	"code.google.com/p/go-sqlite/go1/sqlite3"
+	"code.google.com/p/go-sqlite/go1/sqlite3"
 	"github.com/endophage/go-tuf/data"
 )
 
 const (
-	connString  string = ":inmemory:"
+	tufLoc      string = "/tmp/tuf"
+	connString  string = "/Users/david/gopath/src/github.com/endophage/go-tuf/db/files.db"
 	objectTable string = "objects"
 	repoTable   string = "repositories"
 	keysTable   string = "keys"
@@ -34,36 +36,46 @@ type LocalStore interface {
 
 // implements LocalStore
 type dbStore struct {
-	//	db    sqlite3.Conn
+	db    *sqlite3.Conn
 	meta  map[string]json.RawMessage
 	files map[string]data.FileMeta
 	keys  map[string][]*data.Key
 }
 
-func DBStore(meta map[string]json.RawMessage, files map[string]data.FileMeta) LocalStore {
+func DBStore(meta map[string]json.RawMessage) *dbStore {
 	if meta == nil {
 		meta = make(map[string]json.RawMessage)
 	}
-	return &dbStore{
-		//		db:    sqlite3.Open(connString),
+	conn, err := sqlite3.Open(connString)
+	if err != nil {
+		panic("can't connect to db")
+	}
+	store := dbStore{
+		db:    conn,
 		meta:  meta,
-		files: files,
+		files: make(map[string]data.FileMeta),
 		keys:  make(map[string][]*data.Key),
 	}
+
+	return &store
 }
 
+// GetMeta loads existing TUF metadata files
 func (m *dbStore) GetMeta() (map[string]json.RawMessage, error) {
 	return m.meta, nil
 }
 
+// SetMeta writes individual TUF metadata files
 func (m *dbStore) SetMeta(name string, meta json.RawMessage) error {
 	m.meta[name] = meta
 	return nil
 }
 
+// WalkStagedTargets walks all targets in scope
 func (m *dbStore) WalkStagedTargets(paths []string, targetsFn targetsWalkFunc) error {
 	if len(paths) == 0 {
-		for path, meta := range m.files {
+		files := m.loadFiles("")
+		for path, meta := range files {
 			if err := targetsFn(path, meta); err != nil {
 				return err
 			}
@@ -72,7 +84,8 @@ func (m *dbStore) WalkStagedTargets(paths []string, targetsFn targetsWalkFunc) e
 	}
 
 	for _, path := range paths {
-		meta, ok := m.files[path]
+		files := m.loadFiles(path)
+		meta, ok := files[path]
 		if !ok {
 			return fmt.Errorf("File Not Found")
 		}
@@ -83,15 +96,19 @@ func (m *dbStore) WalkStagedTargets(paths []string, targetsFn targetsWalkFunc) e
 	return nil
 }
 
-func (m *dbStore) Commit(map[string]json.RawMessage, bool, map[string]data.Hashes) error {
+// Commit writes a set of consistent (possibly) TUF metadata files
+func (m *dbStore) Commit(metafiles map[string]json.RawMessage, consistent bool, hashes map[string]data.Hashes) error {
 	// TODO (endophage): write meta files to cache
 	return nil
+
 }
 
+// GetKeys returns private keys
 func (m *dbStore) GetKeys(role string) ([]*data.Key, error) {
 	return m.keys[role], nil
 }
 
+// SaveKey saves a new private key
 func (m *dbStore) SaveKey(role string, key *data.Key) error {
 	if _, ok := m.keys[role]; !ok {
 		m.keys[role] = make([]*data.Key, 0)
@@ -100,15 +117,59 @@ func (m *dbStore) SaveKey(role string, key *data.Key) error {
 	return nil
 }
 
+// Clean removes staged targets
 func (m *dbStore) Clean() error {
 	// TODO (endophage): purge stale items from db? May just/also need a remove method
 	return nil
 }
 
-func (m *dbStore) AddObject(path string, meta data.FileMeta) {
-	m.files[path] = meta
+// AddBlob adds an object to the store
+func (m *dbStore) AddBlob(path string, meta data.FileMeta) {
+	jsonbytes, err := meta.Custom.MarshalJSON()
+	if err != nil {
+		jsonbytes = []byte{}
+	}
+	hashStr := hex.EncodeToString(meta.Hashes["sha256"]) // .([]byte)
+	err = m.db.Exec("INSERT INTO `filemeta` VALUES (?,?,?,?);", path, hashStr, meta.Length, jsonbytes)
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
-func (m *dbStore) RemoveObject(path string) {
-	delete(m.files, path)
+// RemoveBlob removes an object from the store
+func (m *dbStore) RemoveBlob(path string) error {
+	return m.db.Exec("DELETE FROM `filemeta` WHERE `path`=?", path)
+}
+
+func (m *dbStore) loadFiles(path string) map[string]data.FileMeta {
+	var err error
+	var r *sqlite3.Stmt
+	files := make(map[string]data.FileMeta)
+	sql := "SELECT * FROM `filemeta`"
+	if path != "" {
+		sql = fmt.Sprintf("%s %s", sql, "WHERE `path`=?")
+		r, err = m.db.Query(sql, path)
+	} else {
+		r, err = m.db.Query(sql)
+	}
+
+	for ; err == nil; err = r.Next() {
+		var path string
+		var hash string
+		var custom json.RawMessage
+		var size int64
+		r.Scan(&path, &hash, &size, &custom)
+		hashBytes, err := hex.DecodeString(hash)
+		if err != nil {
+			panic("didn't get hex hash")
+		}
+		files[path] = data.FileMeta{
+			Length: size,
+			Hashes: data.Hashes{
+				"sha256": hashBytes,
+			},
+			Custom: &custom,
+		}
+	}
+	return files
 }
