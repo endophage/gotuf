@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/endophage/go-tuf/data"
+	"github.com/endophage/go-tuf/dbstore"
 	"github.com/endophage/go-tuf/keys"
 	"github.com/endophage/go-tuf/signed"
 	"github.com/endophage/go-tuf/util"
@@ -35,30 +36,13 @@ var snapshotManifests = []string{
 	"targets.json",
 }
 
-type targetsWalkFunc func(path string, meta data.FileMeta) error
-
-type LocalStore interface {
-	GetMeta() (map[string]json.RawMessage, error)
-	SetMeta(string, json.RawMessage) error
-
-	// WalkStagedTargets calls targetsFn for each staged target file in paths.
-	//
-	// If paths is empty, all staged target files will be walked.
-	WalkStagedTargets(paths []string, targetsFn targetsWalkFunc) error
-
-	Commit(map[string]json.RawMessage, bool, map[string]data.Hashes) error
-	GetKeys(string) ([]*data.Key, error)
-	SaveKey(string, *data.Key) error
-	Clean() error
-}
-
 type Repo struct {
-	local          LocalStore
+	local          dbstore.LocalStore
 	hashAlgorithms []string
 	meta           map[string]json.RawMessage
 }
 
-func NewRepo(local LocalStore, hashAlgorithms ...string) (*Repo, error) {
+func NewRepo(local dbstore.LocalStore, hashAlgorithms ...string) (*Repo, error) {
 	r := &Repo{local: local, hashAlgorithms: hashAlgorithms}
 
 	var err error
@@ -144,6 +128,7 @@ func (r *Repo) targets() (*data.Targets, error) {
 	}
 	targets := &data.Targets{}
 	if err := json.Unmarshal(s.Signed, targets); err != nil {
+		fmt.Println("error unmarshalling signed data")
 		return nil, err
 	}
 	return targets, nil
@@ -404,10 +389,7 @@ func (r *Repo) AddTargetsWithExpires(paths []string, custom json.RawMessage, exp
 		normalizedPaths[i] = util.NormalizeTarget(path)
 	}
 	if err := r.local.WalkStagedTargets(normalizedPaths, func(path string, meta data.FileMeta) (err error) {
-		//		if len(custom) > 0 {
-		//			meta.Custom = &custom
-		//		}
-		t.Targets[util.NormalizeTarget(path)] = meta
+		t.Targets[path] = meta
 		return nil
 	}); err != nil {
 		return err

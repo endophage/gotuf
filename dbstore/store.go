@@ -17,23 +17,6 @@ const (
 	keysTable   string = "keys"
 )
 
-type targetsWalkFunc func(string, data.FileMeta) error
-
-type LocalStore interface {
-	GetMeta() (map[string]json.RawMessage, error)
-	SetMeta(string, json.RawMessage) error
-
-	// WalkStagedTargets calls targetsFn for each staged target file in paths.
-	//
-	// If paths is empty, all staged target files will be walked.
-	WalkStagedTargets(paths []string, targetsFn targetsWalkFunc) error
-
-	Commit(map[string]json.RawMessage, bool, map[string]data.Hashes) error
-	GetKeys(string) ([]*data.Key, error)
-	SaveKey(string, *data.Key) error
-	Clean() error
-}
-
 // implements LocalStore
 type dbStore struct {
 	db    *sqlite3.Conn
@@ -72,7 +55,7 @@ func (m *dbStore) SetMeta(name string, meta json.RawMessage) error {
 }
 
 // WalkStagedTargets walks all targets in scope
-func (m *dbStore) WalkStagedTargets(paths []string, targetsFn targetsWalkFunc) error {
+func (m *dbStore) WalkStagedTargets(paths []string, targetsFn TargetsWalkFunc) error {
 	if len(paths) == 0 {
 		files := m.loadFiles("")
 		for path, meta := range files {
@@ -125,12 +108,12 @@ func (m *dbStore) Clean() error {
 
 // AddBlob adds an object to the store
 func (m *dbStore) AddBlob(path string, meta data.FileMeta) {
-	jsonbytes, err := meta.Custom.MarshalJSON()
-	if err != nil {
-		jsonbytes = []byte{}
+	jsonbytes := []byte{}
+	if meta.Custom != nil {
+		jsonbytes, _ = meta.Custom.MarshalJSON()
 	}
 	hashStr := hex.EncodeToString(meta.Hashes["sha256"]) // .([]byte)
-	err = m.db.Exec("INSERT INTO `filemeta` VALUES (?,?,?,?);", path, hashStr, meta.Length, jsonbytes)
+	err := m.db.Exec("INSERT INTO `filemeta` VALUES (?,?,?,?);", path, hashStr, meta.Length, jsonbytes)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -152,7 +135,7 @@ func (m *dbStore) loadFiles(path string) map[string]data.FileMeta {
 	} else {
 		r, err = m.db.Query(sql)
 	}
-
+	var file data.FileMeta
 	for ; err == nil; err = r.Next() {
 		var path string
 		var hash string
@@ -161,15 +144,19 @@ func (m *dbStore) loadFiles(path string) map[string]data.FileMeta {
 		r.Scan(&path, &hash, &size, &custom)
 		hashBytes, err := hex.DecodeString(hash)
 		if err != nil {
-			panic("didn't get hex hash")
+			fmt.Println("didn't get hex hash")
 		}
-		files[path] = data.FileMeta{
+		file = data.FileMeta{
 			Length: size,
 			Hashes: data.Hashes{
 				"sha256": hashBytes,
+				"sha512": hashBytes,
 			},
-			Custom: &custom,
 		}
+		if custom != nil {
+			file.Custom = &custom
+		}
+		files[path] = file
 	}
 	return files
 }
