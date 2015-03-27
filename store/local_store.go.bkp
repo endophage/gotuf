@@ -1,4 +1,4 @@
-package tuf
+package store
 
 import (
 	"bytes"

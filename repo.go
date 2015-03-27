@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/endophage/go-tuf/data"
-	"github.com/endophage/go-tuf/dbstore"
 	"github.com/endophage/go-tuf/keys"
 	"github.com/endophage/go-tuf/signed"
+	"github.com/endophage/go-tuf/store"
 	"github.com/endophage/go-tuf/util"
 )
 
@@ -37,12 +37,12 @@ var snapshotManifests = []string{
 }
 
 type Repo struct {
-	local          dbstore.LocalStore
+	local          store.LocalStore
 	hashAlgorithms []string
 	meta           map[string]json.RawMessage
 }
 
-func NewRepo(local dbstore.LocalStore, hashAlgorithms ...string) (*Repo, error) {
+func NewRepo(local store.LocalStore, hashAlgorithms ...string) (*Repo, error) {
 	r := &Repo{local: local, hashAlgorithms: hashAlgorithms}
 
 	var err error

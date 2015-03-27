@@ -13,7 +13,7 @@ import (
 	"github.com/endophage/go-tuf/Godeps/_workspace/src/github.com/agl/ed25519"
 	. "github.com/endophage/go-tuf/Godeps/_workspace/src/gopkg.in/check.v1"
 	"github.com/endophage/go-tuf/data"
-	"github.com/endophage/go-tuf/dbstore"
+	"github.com/endophage/go-tuf/store"
 	//	"github.com/endophage/go-tuf/encrypted"
 	"github.com/endophage/go-tuf/keys"
 	"github.com/endophage/go-tuf/signed"
@@ -67,7 +67,7 @@ func (RepoSuite) TestNewRepo(c *C) {
 		  "signatures": []
 		}`),
 	}
-	local := dbstore.DBStore(meta)
+	local := store.DBStore(meta)
 	r, err := NewRepo(local)
 	c.Assert(err, IsNil)
 
@@ -101,7 +101,7 @@ func (RepoSuite) TestNewRepo(c *C) {
 }
 
 func (RepoSuite) TestInit(c *C) {
-	local := dbstore.DBStore(
+	local := store.DBStore(
 		make(map[string]json.RawMessage),
 		//map[string][]byte{"/foo.txt": []byte("foo")},
 	)
@@ -130,7 +130,7 @@ func genKey(c *C, r *Repo, role string) string {
 }
 
 func (RepoSuite) TestGenKey(c *C) {
-	local := dbstore.DBStore(make(map[string]json.RawMessage))
+	local := store.DBStore(make(map[string]json.RawMessage))
 	r, err := NewRepo(local)
 	c.Assert(err, IsNil)
 
@@ -257,7 +257,7 @@ func (RepoSuite) TestGenKey(c *C) {
 }
 
 func (RepoSuite) TestRevokeKey(c *C) {
-	local := dbstore.DBStore(make(map[string]json.RawMessage))
+	local := store.DBStore(make(map[string]json.RawMessage))
 	r, err := NewRepo(local)
 	c.Assert(err, IsNil)
 
@@ -306,7 +306,7 @@ func (RepoSuite) TestRevokeKey(c *C) {
 
 func (RepoSuite) TestSign(c *C) {
 	meta := map[string]json.RawMessage{"root.json": []byte(`{"signed":{},"signatures":[]}`)}
-	local := dbstore.DBStore(meta)
+	local := store.DBStore(meta)
 	r, err := NewRepo(local)
 	c.Assert(err, IsNil)
 
@@ -347,7 +347,7 @@ func (RepoSuite) TestSign(c *C) {
 
 func (RepoSuite) TestCommit(c *C) {
 	//files := map[string][]byte{"/foo.txt": []byte("foo"), "/bar.txt": []byte("bar")}
-	local := dbstore.DBStore(make(map[string]json.RawMessage))
+	local := store.DBStore(make(map[string]json.RawMessage))
 	r, err := NewRepo(local)
 	c.Assert(err, IsNil)
 
@@ -623,7 +623,7 @@ func (t *tmpDir) readFile(path string) []byte {
 
 func (RepoSuite) TestExpiresAndVersion(c *C) {
 	//files := map[string][]byte{"/foo.txt": []byte("foo")}
-	local := dbstore.DBStore(make(map[string]json.RawMessage))
+	local := store.DBStore(make(map[string]json.RawMessage))
 	r, err := NewRepo(local)
 	c.Assert(err, IsNil)
 
@@ -708,7 +708,7 @@ func (RepoSuite) TestExpiresAndVersion(c *C) {
 
 func (RepoSuite) TestHashAlgorithm(c *C) {
 	//files := map[string][]byte{"/foo.txt": []byte("foo")}
-	local := dbstore.DBStore(make(map[string]json.RawMessage))
+	local := store.DBStore(make(map[string]json.RawMessage))
 	type hashTest struct {
 		args     []string
 		expected []string

@@ -1,4 +1,4 @@
-package dbstore
+package store
 
 import (
 	"encoding/hex"
@@ -55,7 +55,7 @@ func (m *dbStore) SetMeta(name string, meta json.RawMessage) error {
 }
 
 // WalkStagedTargets walks all targets in scope
-func (m *dbStore) WalkStagedTargets(paths []string, targetsFn TargetsWalkFunc) error {
+func (m *dbStore) WalkStagedTargets(paths []string, targetsFn targetsWalkFunc) error {
 	if len(paths) == 0 {
 		files := m.loadFiles("")
 		for path, meta := range files {
@@ -150,7 +150,7 @@ func (m *dbStore) loadFiles(path string) map[string]data.FileMeta {
 			Length: size,
 			Hashes: data.Hashes{
 				"sha256": hashBytes,
-				"sha512": hashBytes,
+				//"sha512": hashBytes,
 			},
 		}
 		if custom != nil {
