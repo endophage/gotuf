@@ -11,7 +11,6 @@ import (
 
 const (
 	tufLoc      string = "/tmp/tuf"
-	connString  string = "/Users/david/gopath/src/github.com/endophage/go-tuf/db/files.db"
 	objectTable string = "objects"
 	repoTable   string = "repositories"
 	keysTable   string = "keys"
@@ -25,16 +24,12 @@ type dbStore struct {
 	keys  map[string][]*data.Key
 }
 
-func DBStore(meta map[string]json.RawMessage) *dbStore {
+func DBStore(db *sqlite3.Conn, meta map[string]json.RawMessage) *dbStore {
 	if meta == nil {
 		meta = make(map[string]json.RawMessage)
 	}
-	conn, err := sqlite3.Open(connString)
-	if err != nil {
-		panic("can't connect to db")
-	}
 	store := dbStore{
-		db:    conn,
+		db:    db,
 		meta:  meta,
 		files: make(map[string]data.FileMeta),
 		keys:  make(map[string][]*data.Key),
@@ -44,20 +39,20 @@ func DBStore(meta map[string]json.RawMessage) *dbStore {
 }
 
 // GetMeta loads existing TUF metadata files
-func (m *dbStore) GetMeta() (map[string]json.RawMessage, error) {
-	return m.meta, nil
+func (dbs *dbStore) GetMeta() (map[string]json.RawMessage, error) {
+	return dbs.meta, nil
 }
 
 // SetMeta writes individual TUF metadata files
-func (m *dbStore) SetMeta(name string, meta json.RawMessage) error {
-	m.meta[name] = meta
+func (dbs *dbStore) SetMeta(name string, meta json.RawMessage) error {
+	dbs.meta[name] = meta
 	return nil
 }
 
 // WalkStagedTargets walks all targets in scope
-func (m *dbStore) WalkStagedTargets(paths []string, targetsFn targetsWalkFunc) error {
+func (dbs *dbStore) WalkStagedTargets(paths []string, targetsFn targetsWalkFunc) error {
 	if len(paths) == 0 {
-		files := m.loadFiles("")
+		files := dbs.loadFiles("")
 		for path, meta := range files {
 			if err := targetsFn(path, meta); err != nil {
 				return err
@@ -67,7 +62,7 @@ func (m *dbStore) WalkStagedTargets(paths []string, targetsFn targetsWalkFunc) e
 	}
 
 	for _, path := range paths {
-		files := m.loadFiles(path)
+		files := dbs.loadFiles(path)
 		meta, ok := files[path]
 		if !ok {
 			return fmt.Errorf("File Not Found")
@@ -80,77 +75,80 @@ func (m *dbStore) WalkStagedTargets(paths []string, targetsFn targetsWalkFunc) e
 }
 
 // Commit writes a set of consistent (possibly) TUF metadata files
-func (m *dbStore) Commit(metafiles map[string]json.RawMessage, consistent bool, hashes map[string]data.Hashes) error {
+func (dbs *dbStore) Commit(metafiles map[string]json.RawMessage, consistent bool, hashes map[string]data.Hashes) error {
 	// TODO (endophage): write meta files to cache
 	return nil
 
 }
 
 // GetKeys returns private keys
-func (m *dbStore) GetKeys(role string) ([]*data.Key, error) {
-	return m.keys[role], nil
+func (dbs *dbStore) GetKeys(role string) ([]*data.Key, error) {
+	return dbs.keys[role], nil
 }
 
 // SaveKey saves a new private key
-func (m *dbStore) SaveKey(role string, key *data.Key) error {
-	if _, ok := m.keys[role]; !ok {
-		m.keys[role] = make([]*data.Key, 0)
+func (dbs *dbStore) SaveKey(role string, key *data.Key) error {
+	if _, ok := dbs.keys[role]; !ok {
+		dbs.keys[role] = make([]*data.Key, 0)
 	}
-	m.keys[role] = append(m.keys[role], key)
+	dbs.keys[role] = append(dbs.keys[role], key)
 	return nil
 }
 
 // Clean removes staged targets
-func (m *dbStore) Clean() error {
+func (dbs *dbStore) Clean() error {
 	// TODO (endophage): purge stale items from db? May just/also need a remove method
 	return nil
 }
 
 // AddBlob adds an object to the store
-func (m *dbStore) AddBlob(path string, meta data.FileMeta) {
+func (dbs *dbStore) AddBlob(path string, meta data.FileMeta) {
 	jsonbytes := []byte{}
 	if meta.Custom != nil {
 		jsonbytes, _ = meta.Custom.MarshalJSON()
 	}
-	hashStr := hex.EncodeToString(meta.Hashes["sha256"]) // .([]byte)
-	err := m.db.Exec("INSERT INTO `filemeta` VALUES (?,?,?,?);", path, hashStr, meta.Length, jsonbytes)
+	sha256Str := hex.EncodeToString(meta.Hashes["sha256"])
+	sha512Str := hex.EncodeToString(meta.Hashes["sha512"])
+	err := dbs.db.Exec("INSERT INTO `filemeta` VALUES (?,?,?,?,?);", path, sha256Str, sha512Str, meta.Length, jsonbytes)
 	if err != nil {
 		fmt.Println(err)
 	}
 }
 
 // RemoveBlob removes an object from the store
-func (m *dbStore) RemoveBlob(path string) error {
-	return m.db.Exec("DELETE FROM `filemeta` WHERE `path`=?", path)
+func (dbs *dbStore) RemoveBlob(path string) error {
+	return dbs.db.Exec("DELETE FROM `filemeta` WHERE `path`=?", path)
 }
 
-func (m *dbStore) loadFiles(path string) map[string]data.FileMeta {
+func (dbs *dbStore) loadFiles(path string) map[string]data.FileMeta {
 	var err error
 	var r *sqlite3.Stmt
 	files := make(map[string]data.FileMeta)
 	sql := "SELECT * FROM `filemeta`"
 	if path != "" {
 		sql = fmt.Sprintf("%s %s", sql, "WHERE `path`=?")
-		r, err = m.db.Query(sql, path)
+		r, err = dbs.db.Query(sql, path)
 	} else {
-		r, err = m.db.Query(sql)
+		r, err = dbs.db.Query(sql)
 	}
 	var file data.FileMeta
 	for ; err == nil; err = r.Next() {
 		var path string
-		var hash string
+		var sha256 string
+		var sha512 string
 		var custom json.RawMessage
 		var size int64
-		r.Scan(&path, &hash, &size, &custom)
-		hashBytes, err := hex.DecodeString(hash)
+		r.Scan(&path, &sha256, &sha512, &size, &custom)
+		sha256Bytes, err := hex.DecodeString(sha256)
+		sha512Bytes, err := hex.DecodeString(sha512)
 		if err != nil {
 			fmt.Println("didn't get hex hash")
 		}
 		file = data.FileMeta{
 			Length: size,
 			Hashes: data.Hashes{
-				"sha256": hashBytes,
-				//"sha512": hashBytes,
+				"sha256": sha256Bytes,
+				"sha512": sha512Bytes,
 			},
 		}
 		if custom != nil {

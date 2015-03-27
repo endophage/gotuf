@@ -6,21 +6,26 @@ import (
 	"testing"
 
 	"github.com/endophage/go-tuf/data"
+	"github.com/endophage/go-tuf/util"
 )
 
 // TestDBStore just ensures we can initialize an empty store.
 // Nothing to test, just ensure no crashes :-)
 func TestDBStore(t *testing.T) {
+	db := util.GetSqliteDB()
+	defer util.FlushDB(db)
 	_ = DBStore(
+		db,
 		make(map[string]json.RawMessage),
 	)
 }
 
 func TestLoadFiles(t *testing.T) {
-	store := DBStore(make(map[string]json.RawMessage))
-	defer store.db.Exec("DELETE FROM `filemeta`;")
+	db := util.GetSqliteDB()
+	defer util.FlushDB(db)
+	store := DBStore(db, make(map[string]json.RawMessage))
 
-	store.db.Exec("INSERT INTO `filemeta` VALUES (\"/foo.txt\", \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\", 0, \"\")")
+	store.db.Exec("INSERT INTO `filemeta` VALUES (\"/foo.txt\", \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\", \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\", 0, \"\")")
 
 	called := false
 	check := func(path string, meta data.FileMeta) error {
@@ -38,8 +43,7 @@ func TestLoadFiles(t *testing.T) {
 			t.Fatal("Length is incorrect")
 		}
 
-		_, ok := meta.Hashes["sha256"]
-		if len(meta.Hashes) != 1 || !ok {
+		if len(meta.Hashes) != 2 {
 			t.Fatal("Hashes map has been modified")
 		}
 
@@ -52,14 +56,10 @@ func TestLoadFiles(t *testing.T) {
 }
 
 func TestAddBlob(t *testing.T) {
-	store := DBStore(make(map[string]json.RawMessage))
-	defer store.db.Exec("DELETE FROM `filemeta`;")
-	meta := data.FileMeta{
-		Length: 1,
-		Hashes: data.Hashes{"sha256": data.HexBytes{0x01, 0x02}},
-		Custom: &json.RawMessage{},
-	}
-
+	db := util.GetSqliteDB()
+	defer util.FlushDB(db)
+	store := DBStore(db, make(map[string]json.RawMessage))
+	meta := util.SampleMeta()
 	store.AddBlob("/foo.txt", meta)
 
 	called := false
@@ -78,14 +78,19 @@ func TestAddBlob(t *testing.T) {
 			t.Fatal("Length is incorrect")
 		}
 
-		sha, ok := meta.Hashes["sha256"]
-		if len(meta.Hashes) != 1 || !ok {
+		sha256, ok256 := meta.Hashes["sha256"]
+		sha512, ok512 := meta.Hashes["sha512"]
+		if len(meta.Hashes) != 2 || !ok256 || !ok512 {
 			t.Fatal("Hashes map has been modified")
 		}
 
 		hash := data.HexBytes{0x01, 0x02}
-		if sha[0] != hash[0] || sha[1] != hash[1] {
-			t.Fatal("Hash has been modified")
+		if sha256[0] != hash[0] || sha256[1] != hash[1] {
+			t.Fatal("SHA256 has been modified")
+		}
+		hash = data.HexBytes{0x03, 0x04}
+		if sha512[0] != hash[0] || sha512[1] != hash[1] {
+			t.Fatal("SHA512 has been modified")
 		}
 		return nil
 	}
@@ -99,13 +104,10 @@ func TestAddBlob(t *testing.T) {
 
 func TestRemoveBlob(t *testing.T) {
 	testPath := "/foo.txt"
-	store := DBStore(make(map[string]json.RawMessage))
-	defer store.db.Exec("DELETE FROM `filemeta`;")
-	meta := data.FileMeta{
-		Length: 1,
-		Hashes: data.Hashes{"sha256": data.HexBytes{0x01, 0x02}},
-		Custom: &json.RawMessage{},
-	}
+	db := util.GetSqliteDB()
+	defer util.FlushDB(db)
+	store := DBStore(db, make(map[string]json.RawMessage))
+	meta := util.SampleMeta()
 
 	store.AddBlob(testPath, meta)
 
@@ -126,13 +128,10 @@ func TestRemoveBlob(t *testing.T) {
 }
 
 func TestLoadFilesWithPath(t *testing.T) {
-	store := DBStore(make(map[string]json.RawMessage))
-	defer store.db.Exec("DELETE FROM `filemeta`;")
-	meta := data.FileMeta{
-		Length: 1,
-		Hashes: data.Hashes{"sha256": data.HexBytes{0x01, 0x02}},
-		Custom: &json.RawMessage{},
-	}
+	db := util.GetSqliteDB()
+	defer util.FlushDB(db)
+	store := DBStore(db, make(map[string]json.RawMessage))
+	meta := util.SampleMeta()
 
 	store.AddBlob("/foo.txt", meta)
 	store.AddBlob("/bar.txt", meta)

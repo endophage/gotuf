@@ -67,7 +67,10 @@ func (RepoSuite) TestNewRepo(c *C) {
 		  "signatures": []
 		}`),
 	}
-	local := store.DBStore(meta)
+	db := util.GetSqliteDB()
+	defer util.FlushDB(db)
+	local := store.DBStore(db, meta)
+
 	r, err := NewRepo(local)
 	c.Assert(err, IsNil)
 
@@ -101,11 +104,14 @@ func (RepoSuite) TestNewRepo(c *C) {
 }
 
 func (RepoSuite) TestInit(c *C) {
+	db := util.GetSqliteDB()
+	defer util.FlushDB(db)
 	local := store.DBStore(
+		db,
 		make(map[string]json.RawMessage),
 		//map[string][]byte{"/foo.txt": []byte("foo")},
 	)
-	local.AddBlob("/foo.txt", sampleMeta())
+	local.AddBlob("/foo.txt", util.SampleMeta())
 
 	r, err := NewRepo(local)
 	c.Assert(err, IsNil)
@@ -130,7 +136,9 @@ func genKey(c *C, r *Repo, role string) string {
 }
 
 func (RepoSuite) TestGenKey(c *C) {
-	local := store.DBStore(make(map[string]json.RawMessage))
+	sqldb := util.GetSqliteDB()
+	defer util.FlushDB(sqldb)
+	local := store.DBStore(sqldb, make(map[string]json.RawMessage))
 	r, err := NewRepo(local)
 	c.Assert(err, IsNil)
 
@@ -257,7 +265,9 @@ func (RepoSuite) TestGenKey(c *C) {
 }
 
 func (RepoSuite) TestRevokeKey(c *C) {
-	local := store.DBStore(make(map[string]json.RawMessage))
+	db := util.GetSqliteDB()
+	defer util.FlushDB(db)
+	local := store.DBStore(db, make(map[string]json.RawMessage))
 	r, err := NewRepo(local)
 	c.Assert(err, IsNil)
 
@@ -306,7 +316,9 @@ func (RepoSuite) TestRevokeKey(c *C) {
 
 func (RepoSuite) TestSign(c *C) {
 	meta := map[string]json.RawMessage{"root.json": []byte(`{"signed":{},"signatures":[]}`)}
-	local := store.DBStore(meta)
+	db := util.GetSqliteDB()
+	defer util.FlushDB(db)
+	local := store.DBStore(db, meta)
 	r, err := NewRepo(local)
 	c.Assert(err, IsNil)
 
@@ -347,7 +359,9 @@ func (RepoSuite) TestSign(c *C) {
 
 func (RepoSuite) TestCommit(c *C) {
 	//files := map[string][]byte{"/foo.txt": []byte("foo"), "/bar.txt": []byte("bar")}
-	local := store.DBStore(make(map[string]json.RawMessage))
+	db := util.GetSqliteDB()
+	defer util.FlushDB(db)
+	local := store.DBStore(db, make(map[string]json.RawMessage))
 	r, err := NewRepo(local)
 	c.Assert(err, IsNil)
 
@@ -360,6 +374,7 @@ func (RepoSuite) TestCommit(c *C) {
 
 	// commit without snapshot.json
 	genKey(c, r, "targets")
+	local.AddBlob("/foo.txt", util.SampleMeta())
 	c.Assert(r.AddTarget("foo.txt", nil), IsNil)
 	c.Assert(r.Commit(), DeepEquals, ErrMissingMetadata{"snapshot.json"})
 
@@ -385,7 +400,7 @@ func (RepoSuite) TestCommit(c *C) {
 
 	// commit with an invalid targets hash in snapshot.json
 	c.Assert(r.Snapshot(CompressionTypeNone), IsNil)
-	local.AddBlob("/bar.txt", sampleMeta())
+	local.AddBlob("/bar.txt", util.SampleMeta())
 	c.Assert(r.AddTarget("bar.txt", nil), IsNil)
 	c.Assert(r.Commit(), DeepEquals, errors.New("tuf: invalid targets.json in snapshot.json: wrong length"))
 
@@ -623,7 +638,9 @@ func (t *tmpDir) readFile(path string) []byte {
 
 func (RepoSuite) TestExpiresAndVersion(c *C) {
 	//files := map[string][]byte{"/foo.txt": []byte("foo")}
-	local := store.DBStore(make(map[string]json.RawMessage))
+	db := util.GetSqliteDB()
+	defer util.FlushDB(db)
+	local := store.DBStore(db, make(map[string]json.RawMessage))
 	r, err := NewRepo(local)
 	c.Assert(err, IsNil)
 
@@ -666,6 +683,7 @@ func (RepoSuite) TestExpiresAndVersion(c *C) {
 
 	expires = time.Now().Add(6 * time.Hour)
 	genKey(c, r, "targets")
+	local.AddBlob("/foo.txt", util.SampleMeta())
 	c.Assert(r.AddTargetWithExpires("foo.txt", nil, expires), IsNil)
 	targets, err := r.targets()
 	c.Assert(err, IsNil)
@@ -708,7 +726,9 @@ func (RepoSuite) TestExpiresAndVersion(c *C) {
 
 func (RepoSuite) TestHashAlgorithm(c *C) {
 	//files := map[string][]byte{"/foo.txt": []byte("foo")}
-	local := store.DBStore(make(map[string]json.RawMessage))
+	db := util.GetSqliteDB()
+	defer util.FlushDB(db)
+	local := store.DBStore(db, make(map[string]json.RawMessage))
 	type hashTest struct {
 		args     []string
 		expected []string
@@ -724,6 +744,7 @@ func (RepoSuite) TestHashAlgorithm(c *C) {
 		genKey(c, r, "root")
 		genKey(c, r, "targets")
 		genKey(c, r, "snapshot")
+		local.AddBlob("/foo.txt", util.SampleMeta())
 		c.Assert(r.AddTarget("foo.txt", nil), IsNil)
 		c.Assert(r.Snapshot(CompressionTypeNone), IsNil)
 		c.Assert(r.Timestamp(), IsNil)
@@ -883,11 +904,3 @@ func testPassphraseFunc(p []byte) util.PassphraseFunc {
 //	c.Assert(err, IsNil)
 //	c.Assert(t.Targets, HasLen, 0)
 //}
-
-func sampleMeta() data.FileMeta {
-	meta := data.FileMeta{
-		Length: 1,
-		Hashes: data.Hashes{"sha256": data.HexBytes{0x01, 0x02}},
-	}
-	return meta
-}
