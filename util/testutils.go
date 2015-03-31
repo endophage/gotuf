@@ -26,4 +26,5 @@ func GetSqliteDB() *sqlite3.Conn {
 
 func FlushDB(db *sqlite3.Conn) {
 	db.Exec("DELETE FROM `filemeta`")
+	db.Exec("DELETE FROM `filehashes`")
 }

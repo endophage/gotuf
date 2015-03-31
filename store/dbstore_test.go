@@ -20,8 +20,8 @@ func TestLoadFiles(t *testing.T) {
 	db := util.GetSqliteDB()
 	defer util.FlushDB(db)
 	store := DBStore(db, "docker.io/testImage", make(map[string][]*data.Key))
-
-	store.db.Exec("INSERT INTO `filemeta` VALUES (\"docker.io/testImage/foo.txt\", \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\", \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\", 0, \"\")")
+	testmeta := util.SampleMeta()
+	store.AddBlob("/foo.txt", testmeta)
 
 	called := false
 	check := func(path string, meta data.FileMeta) error {
@@ -35,11 +35,11 @@ func TestLoadFiles(t *testing.T) {
 			t.Fatal("Path is incorrect", path)
 		}
 
-		if meta.Length != 0 {
+		if meta.Length != testmeta.Length {
 			t.Fatal("Length is incorrect")
 		}
 
-		if len(meta.Hashes) != 2 {
+		if len(meta.Hashes) != len(testmeta.Hashes) {
 			t.Fatal("Hashes map has been modified")
 		}
 
@@ -55,8 +55,8 @@ func TestAddBlob(t *testing.T) {
 	db := util.GetSqliteDB()
 	defer util.FlushDB(db)
 	store := DBStore(db, "docker.io/testImage", make(map[string][]*data.Key))
-	meta := util.SampleMeta()
-	store.AddBlob("/foo.txt", meta)
+	testmeta := util.SampleMeta()
+	store.AddBlob("/foo.txt", testmeta)
 
 	called := false
 	check := func(path string, meta data.FileMeta) error {

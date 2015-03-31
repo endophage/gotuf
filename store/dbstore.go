@@ -60,8 +60,9 @@ func (dbs *dbStore) WalkStagedTargets(relPaths []string, targetsFn targetsWalkFu
 	}
 
 	for _, relPath := range relPaths {
-		files := dbs.loadFiles(relPath)
 		absPath := dbs.absPath(relPath)
+		fmt.Println(absPath)
+		files := dbs.loadFiles(absPath)
 		meta, ok := files[absPath]
 		if !ok {
 			return fmt.Errorf("File Not Found")
@@ -106,13 +107,23 @@ func (dbs *dbStore) AddBlob(relPath string, meta data.FileMeta) {
 	if meta.Custom != nil {
 		jsonbytes, _ = meta.Custom.MarshalJSON()
 	}
-	sha256Str := hex.EncodeToString(meta.Hashes["sha256"])
-	sha512Str := hex.EncodeToString(meta.Hashes["sha512"])
 	absPath := dbs.absPath(relPath)
 
-	err := dbs.db.Exec("INSERT INTO `filemeta` VALUES (?,?,?,?,?);", absPath, sha256Str, sha512Str, meta.Length, jsonbytes)
+	err := dbs.db.Exec("INSERT OR REPLACE INTO `filemeta` VALUES (?,?,?);", absPath, meta.Length, jsonbytes)
 	if err != nil {
 		fmt.Println(err)
+	}
+	dbs.addBlobHashes(absPath, meta.Hashes)
+}
+
+func (dbs *dbStore) addBlobHashes(absPath string, hashes data.Hashes) {
+	sql := "INSERT OR REPLACE INTO `filehashes` VALUES (?,?,?);"
+	var err error
+	for alg, hash := range hashes {
+		err = dbs.db.Exec(sql, absPath, alg, hex.EncodeToString(hash))
+		if err != nil {
+			fmt.Println(err)
+		}
 	}
 }
 
@@ -122,42 +133,45 @@ func (dbs *dbStore) RemoveBlob(relPath string) error {
 	return dbs.db.Exec("DELETE FROM `filemeta` WHERE `path`=?", absPath)
 }
 
-func (dbs *dbStore) loadFiles(relPath string) map[string]data.FileMeta {
+func (dbs *dbStore) loadFiles(absPath string) map[string]data.FileMeta {
 	var err error
 	var r *sqlite3.Stmt
 	files := make(map[string]data.FileMeta)
-	sql := "SELECT * FROM `filemeta`"
-	if relPath != "" {
-		absPath := dbs.absPath(relPath)
-		sql = fmt.Sprintf("%s %s", sql, "WHERE `path`=?")
+	sql := "SELECT `filemeta`.`path`, `size`, `alg`, `hash`, `custom` FROM `filemeta` JOIN `filehashes` ON `filemeta`.`path` = `filehashes`.`path`"
+	if absPath != "" {
+		sql = fmt.Sprintf("%s %s", sql, "WHERE `filemeta`.`path`=?")
 		r, err = dbs.db.Query(sql, absPath)
 	} else {
 		r, err = dbs.db.Query(sql)
 	}
-	var file data.FileMeta
 	for ; err == nil; err = r.Next() {
-		var tagPath string
-		var sha256 string
-		var sha512 string
-		var custom json.RawMessage
+		var absPath string
 		var size int64
-		r.Scan(&tagPath, &sha256, &sha512, &size, &custom)
-		sha256Bytes, err := hex.DecodeString(sha256)
-		sha512Bytes, err := hex.DecodeString(sha512)
+		var custom json.RawMessage
+		var alg string
+		var hash string
+		r.Scan(&absPath, &size, &alg, &hash, &custom)
+		hashBytes, err := hex.DecodeString(hash)
 		if err != nil {
-			fmt.Println("didn't get hex hash")
+			// We're going to skip items with unparseable hashes as they
+			// won't be valid in the targets.json
+			fmt.Println("Hash was not stored in hex as expected")
+			continue
 		}
-		file = data.FileMeta{
-			Length: size,
-			Hashes: data.Hashes{
-				"sha256": sha256Bytes,
-				"sha512": sha512Bytes,
-			},
+		if file, ok := files[absPath]; ok {
+			file.Hashes[alg] = hashBytes
+		} else {
+			file = data.FileMeta{
+				Length: size,
+				Hashes: data.Hashes{
+					alg: hashBytes,
+				},
+			}
+			if custom != nil {
+				file.Custom = &custom
+			}
+			files[absPath] = file
 		}
-		if custom != nil {
-			file.Custom = &custom
-		}
-		files[tagPath] = file
 	}
 	return files
 }
