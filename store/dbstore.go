@@ -24,15 +24,14 @@ type dbStore struct {
 	keys  map[string][]*data.Key
 }
 
-func DBStore(db *sqlite3.Conn, meta map[string]json.RawMessage) *dbStore {
+func DBStore(db *sqlite3.Conn, meta map[string]json.RawMessage, keys map[string][]*data.Key) *dbStore {
 	if meta == nil {
 		meta = make(map[string]json.RawMessage)
 	}
 	store := dbStore{
-		db:    db,
-		meta:  meta,
-		files: make(map[string]data.FileMeta),
-		keys:  make(map[string][]*data.Key),
+		db:   db,
+		meta: meta,
+		keys: keys,
 	}
 
 	return &store
