@@ -1,7 +1,6 @@
 package store
 
 import (
-	"encoding/json"
 	//	"fmt"
 	"testing"
 
@@ -14,18 +13,15 @@ import (
 func TestDBStore(t *testing.T) {
 	db := util.GetSqliteDB()
 	defer util.FlushDB(db)
-	_ = DBStore(
-		db,
-		make(map[string]json.RawMessage),
-	)
+	_ = DBStore(db, "docker.io/testImage", make(map[string][]*data.Key))
 }
 
 func TestLoadFiles(t *testing.T) {
 	db := util.GetSqliteDB()
 	defer util.FlushDB(db)
-	store := DBStore(db, make(map[string]json.RawMessage))
+	store := DBStore(db, "docker.io/testImage", make(map[string][]*data.Key))
 
-	store.db.Exec("INSERT INTO `filemeta` VALUES (\"/foo.txt\", \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\", \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\", 0, \"\")")
+	store.db.Exec("INSERT INTO `filemeta` VALUES (\"docker.io/testImage/foo.txt\", \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\", \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\", 0, \"\")")
 
 	called := false
 	check := func(path string, meta data.FileMeta) error {
@@ -35,8 +31,8 @@ func TestLoadFiles(t *testing.T) {
 			called = true
 		}
 
-		if path != "/foo.txt" {
-			t.Fatal("Path is incorrect")
+		if path != "docker.io/testImage/foo.txt" {
+			t.Fatal("Path is incorrect", path)
 		}
 
 		if meta.Length != 0 {
@@ -58,7 +54,7 @@ func TestLoadFiles(t *testing.T) {
 func TestAddBlob(t *testing.T) {
 	db := util.GetSqliteDB()
 	defer util.FlushDB(db)
-	store := DBStore(db, make(map[string]json.RawMessage))
+	store := DBStore(db, "docker.io/testImage", make(map[string][]*data.Key))
 	meta := util.SampleMeta()
 	store.AddBlob("/foo.txt", meta)
 
@@ -70,7 +66,7 @@ func TestAddBlob(t *testing.T) {
 			called = true
 		}
 
-		if path != "/foo.txt" {
+		if path != "docker.io/testImage/foo.txt" {
 			t.Fatal("Path is incorrect")
 		}
 
@@ -106,7 +102,7 @@ func TestRemoveBlob(t *testing.T) {
 	testPath := "/foo.txt"
 	db := util.GetSqliteDB()
 	defer util.FlushDB(db)
-	store := DBStore(db, make(map[string]json.RawMessage))
+	store := DBStore(db, "docker.io/testImage", make(map[string][]*data.Key))
 	meta := util.SampleMeta()
 
 	store.AddBlob(testPath, meta)
@@ -130,7 +126,7 @@ func TestRemoveBlob(t *testing.T) {
 func TestLoadFilesWithPath(t *testing.T) {
 	db := util.GetSqliteDB()
 	defer util.FlushDB(db)
-	store := DBStore(db, make(map[string]json.RawMessage))
+	store := DBStore(db, "docker.io/testImage", make(map[string][]*data.Key))
 	meta := util.SampleMeta()
 
 	store.AddBlob("/foo.txt", meta)
@@ -144,7 +140,7 @@ func TestLoadFilesWithPath(t *testing.T) {
 			called = true
 		}
 
-		if path != "/foo.txt" {
+		if path != "docker.io/testImage/foo.txt" {
 			t.Fatal("Path is incorrect")
 		}
 
