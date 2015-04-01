@@ -13,13 +13,13 @@ import (
 func TestDBStore(t *testing.T) {
 	db := util.GetSqliteDB()
 	defer util.FlushDB(db)
-	_ = DBStore(db, "docker.io/testImage", make(map[string][]*data.Key))
+	_ = DBStore(nil, "")
 }
 
 func TestLoadFiles(t *testing.T) {
 	db := util.GetSqliteDB()
 	defer util.FlushDB(db)
-	store := DBStore(db, "docker.io/testImage", make(map[string][]*data.Key))
+	store := DBStore(db, "docker.io/testImage")
 	testmeta := util.SampleMeta()
 	store.AddBlob("/foo.txt", testmeta)
 
@@ -54,7 +54,7 @@ func TestLoadFiles(t *testing.T) {
 func TestAddBlob(t *testing.T) {
 	db := util.GetSqliteDB()
 	defer util.FlushDB(db)
-	store := DBStore(db, "docker.io/testImage", make(map[string][]*data.Key))
+	store := DBStore(db, "docker.io/testImage")
 	testmeta := util.SampleMeta()
 	store.AddBlob("/foo.txt", testmeta)
 
@@ -102,7 +102,7 @@ func TestRemoveBlob(t *testing.T) {
 	testPath := "/foo.txt"
 	db := util.GetSqliteDB()
 	defer util.FlushDB(db)
-	store := DBStore(db, "docker.io/testImage", make(map[string][]*data.Key))
+	store := DBStore(db, "docker.io/testImage")
 	meta := util.SampleMeta()
 
 	store.AddBlob(testPath, meta)
@@ -126,7 +126,7 @@ func TestRemoveBlob(t *testing.T) {
 func TestLoadFilesWithPath(t *testing.T) {
 	db := util.GetSqliteDB()
 	defer util.FlushDB(db)
-	store := DBStore(db, "docker.io/testImage", make(map[string][]*data.Key))
+	store := DBStore(db, "docker.io/testImage")
 	meta := util.SampleMeta()
 
 	store.AddBlob("/foo.txt", meta)

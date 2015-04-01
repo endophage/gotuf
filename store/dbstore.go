@@ -4,32 +4,29 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"path"
+	"strings"
 
 	"code.google.com/p/go-sqlite/go1/sqlite3"
 	"github.com/docker/go-tuf/data"
 )
 
 const (
-	tufLoc      string = "/tmp/tuf"
-	objectTable string = "objects"
-	repoTable   string = "repositories"
-	keysTable   string = "keys"
+	tufLoc string = "/tmp/tuf"
 )
 
 // implements LocalStore
 type dbStore struct {
 	db        *sqlite3.Conn
 	imageName string
-	meta      map[string]json.RawMessage
-	keys      map[string][]*data.Key
 }
 
-func DBStore(db *sqlite3.Conn, imageName string, keys map[string][]*data.Key) *dbStore {
+func DBStore(db *sqlite3.Conn, imageName string) *dbStore {
 	store := dbStore{
 		db:        db,
 		imageName: imageName,
-		keys:      keys,
 	}
 
 	return &store
@@ -37,14 +34,31 @@ func DBStore(db *sqlite3.Conn, imageName string, keys map[string][]*data.Key) *d
 
 // GetMeta loads existing TUF metadata files
 func (dbs *dbStore) GetMeta() (map[string]json.RawMessage, error) {
-	return dbs.meta, nil
+	metadataDir := path.Join(tufLoc, dbs.imageName)
+	var absPath string
+	var err error
+	meta := make(map[string]json.RawMessage)
+	files, err := ioutil.ReadDir(metadataDir)
+	if err != nil {
+		return nil, err
+	}
+	for _, file := range files {
+		if strings.HasSuffix(file.Name(), ".json") {
+			absPath = dbs.absPath(file.Name())
+			data, err := dbs.readFile(absPath)
+			if err != nil {
+				continue
+			}
+			meta[file.Name()] = json.RawMessage(data)
+		}
+	}
+	return meta, err
 }
 
 // SetMeta writes individual TUF metadata files
 func (dbs *dbStore) SetMeta(name string, meta json.RawMessage) error {
-
-	dbs.meta[name] = meta
-	return nil
+	absPath := dbs.absPath(name)
+	return dbs.writeFile(absPath, meta)
 }
 
 // WalkStagedTargets walks all targets in scope
@@ -61,7 +75,6 @@ func (dbs *dbStore) WalkStagedTargets(relPaths []string, targetsFn targetsWalkFu
 
 	for _, relPath := range relPaths {
 		absPath := dbs.absPath(relPath)
-		fmt.Println(absPath)
 		files := dbs.loadFiles(absPath)
 		meta, ok := files[absPath]
 		if !ok {
@@ -83,16 +96,33 @@ func (dbs *dbStore) Commit(metafiles map[string]json.RawMessage, consistent bool
 
 // GetKeys returns private keys
 func (dbs *dbStore) GetKeys(role string) ([]*data.Key, error) {
-	return dbs.keys[role], nil
+	keys := []*data.Key{}
+	absPath := dbs.absPath(role)
+	var err error
+	var r *sqlite3.Stmt
+	sql := "SELECT `key` FROM `keys` WHERE `role` = ?;"
+	r, err = dbs.db.Query(sql, absPath)
+	for ; err == nil; err = r.Next() {
+		var jsonStr string
+		key := data.Key{}
+		r.Scan(&role, &jsonStr)
+		err := json.Unmarshal([]byte(jsonStr), &key)
+		if err != nil {
+			return nil, err
+		}
+		keys = append(keys, &key)
+	}
+	return keys, nil
 }
 
 // SaveKey saves a new private key
 func (dbs *dbStore) SaveKey(role string, key *data.Key) error {
-	if _, ok := dbs.keys[role]; !ok {
-		dbs.keys[role] = make([]*data.Key, 0)
+	jsonBytes, err := json.Marshal(key)
+	if err != nil {
+		return fmt.Errorf("Could not JSON Marshal Key")
 	}
-	dbs.keys[role] = append(dbs.keys[role], key)
-	return nil
+	absPath := dbs.absPath(role)
+	return dbs.db.Exec("INSERT INTO `keys` (`role`, `key`) VALUES (?,?);", absPath, string(jsonBytes))
 }
 
 // Clean removes staged targets
@@ -145,11 +175,9 @@ func (dbs *dbStore) loadFiles(absPath string) map[string]data.FileMeta {
 		r, err = dbs.db.Query(sql)
 	}
 	for ; err == nil; err = r.Next() {
-		var absPath string
+		var absPath, alg, hash string
 		var size int64
 		var custom json.RawMessage
-		var alg string
-		var hash string
 		r.Scan(&absPath, &size, &alg, &hash, &custom)
 		hashBytes, err := hex.DecodeString(hash)
 		if err != nil {
@@ -178,4 +206,20 @@ func (dbs *dbStore) loadFiles(absPath string) map[string]data.FileMeta {
 
 func (dbs *dbStore) absPath(relPath string) string {
 	return path.Join(dbs.imageName, relPath)
+}
+
+func (dbs *dbStore) writeFile(name string, content []byte) error {
+	fullPath := path.Join(tufLoc, name)
+	dirPath := path.Dir(fullPath)
+	err := os.MkdirAll(dirPath, 0644)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(fullPath, content, 0644)
+}
+
+func (dbs *dbStore) readFile(name string) ([]byte, error) {
+	fullPath := path.Join(tufLoc, name)
+	content, err := ioutil.ReadFile(fullPath)
+	return content, err
 }
