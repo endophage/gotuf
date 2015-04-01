@@ -3,7 +3,7 @@ package store
 import (
 	"encoding/json"
 
-	"github.com/endophage/go-tuf/data"
+	"github.com/docker/go-tuf/data"
 )
 
 type targetsWalkFunc func(path string, meta data.FileMeta) error

@@ -1,9 +1,9 @@
 package signed
 
 import (
-	"github.com/endophage/go-tuf/Godeps/_workspace/src/github.com/agl/ed25519"
-	cjson "github.com/endophage/go-tuf/Godeps/_workspace/src/github.com/tent/canonical-json-go"
-	"github.com/endophage/go-tuf/data"
+	"github.com/docker/go-tuf/Godeps/_workspace/src/github.com/agl/ed25519"
+	cjson "github.com/docker/go-tuf/Godeps/_workspace/src/github.com/tent/canonical-json-go"
+	"github.com/docker/go-tuf/data"
 )
 
 func Sign(s *data.Signed, k *data.Key) {

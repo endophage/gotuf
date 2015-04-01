@@ -4,8 +4,8 @@ import (
 	//	"fmt"
 	"testing"
 
-	"github.com/endophage/go-tuf/data"
-	"github.com/endophage/go-tuf/util"
+	"github.com/docker/go-tuf/data"
+	"github.com/docker/go-tuf/util"
 )
 
 // TestDBStore just ensures we can initialize an empty store.

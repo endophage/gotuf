@@ -5,8 +5,8 @@ import (
 	"encoding/hex"
 	"testing"
 
-	. "github.com/endophage/go-tuf/Godeps/_workspace/src/gopkg.in/check.v1"
-	"github.com/endophage/go-tuf/data"
+	. "github.com/docker/go-tuf/Godeps/_workspace/src/gopkg.in/check.v1"
+	"github.com/docker/go-tuf/data"
 )
 
 // Hook up gocheck into the "go test" runner.

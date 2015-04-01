@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/endophage/go-tuf/data"
-	"github.com/endophage/go-tuf/keys"
-	"github.com/endophage/go-tuf/signed"
-	"github.com/endophage/go-tuf/store"
-	"github.com/endophage/go-tuf/util"
+	"github.com/docker/go-tuf/data"
+	"github.com/docker/go-tuf/keys"
+	"github.com/docker/go-tuf/signed"
+	"github.com/docker/go-tuf/store"
+	"github.com/docker/go-tuf/util"
 )
 
 type CompressionType uint8
