@@ -1,6 +1,8 @@
 package util
 
 import (
+	"os"
+
 	"code.google.com/p/go-sqlite/go1/sqlite3"
 	"github.com/docker/go-tuf/data"
 )
@@ -27,4 +29,7 @@ func GetSqliteDB() *sqlite3.Conn {
 func FlushDB(db *sqlite3.Conn) {
 	db.Exec("DELETE FROM `filemeta`")
 	db.Exec("DELETE FROM `filehashes`")
+	db.Exec("DELETE FROM `keys`")
+
+	os.RemoveAll("/tmp/tuf")
 }

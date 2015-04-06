@@ -31,7 +31,7 @@ func TestLoadFiles(t *testing.T) {
 			called = true
 		}
 
-		if path != "docker.io/testImage/foo.txt" {
+		if path != "/foo.txt" {
 			t.Fatal("Path is incorrect", path)
 		}
 
@@ -66,7 +66,7 @@ func TestAddBlob(t *testing.T) {
 			called = true
 		}
 
-		if path != "docker.io/testImage/foo.txt" {
+		if path != "/foo.txt" {
 			t.Fatal("Path is incorrect")
 		}
 
@@ -140,7 +140,7 @@ func TestLoadFilesWithPath(t *testing.T) {
 			called = true
 		}
 
-		if path != "docker.io/testImage/foo.txt" {
+		if path != "/foo.txt" {
 			t.Fatal("Path is incorrect")
 		}
 

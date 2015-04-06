@@ -128,7 +128,6 @@ func (r *Repo) targets() (*data.Targets, error) {
 	}
 	targets := &data.Targets{}
 	if err := json.Unmarshal(s.Signed, targets); err != nil {
-		fmt.Println("error unmarshalling signed data")
 		return nil, err
 	}
 	return targets, nil

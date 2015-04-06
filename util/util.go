@@ -10,8 +10,8 @@ import (
 	"hash"
 	"io"
 	"io/ioutil"
+	gopath "path"
 	"path/filepath"
-	"strings"
 
 	"github.com/docker/go-tuf/data"
 )
@@ -105,14 +105,7 @@ func GenerateFileMeta(r io.Reader, hashAlgorithms ...string) (data.FileMeta, err
 }
 
 func NormalizeTarget(path string) string {
-	if path == "" {
-		return "/"
-	}
-	s := filepath.Clean(path)
-	if strings.HasPrefix(s, "/") {
-		return s
-	}
-	return "/" + s
+	return gopath.Join("/", path)
 }
 
 func HashedPaths(path string, hashes data.Hashes) []string {

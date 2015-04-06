@@ -3,7 +3,7 @@ package tuf
 import (
 	"encoding/json"
 	"errors"
-	//"fmt"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -69,7 +69,11 @@ func (RepoSuite) TestNewRepo(c *C) {
 	}
 	db := util.GetSqliteDB()
 	defer util.FlushDB(db)
-	local := store.DBStore(db, meta)
+	local := store.DBStore(db, "")
+
+	for k, v := range meta {
+		local.SetMeta(k, v)
+	}
 
 	r, err := NewRepo(local)
 	c.Assert(err, IsNil)
@@ -108,7 +112,7 @@ func (RepoSuite) TestInit(c *C) {
 	defer util.FlushDB(db)
 	local := store.DBStore(
 		db,
-		make(map[string]json.RawMessage),
+		"",
 		//map[string][]byte{"/foo.txt": []byte("foo")},
 	)
 	local.AddBlob("/foo.txt", util.SampleMeta())
@@ -138,7 +142,7 @@ func genKey(c *C, r *Repo, role string) string {
 func (RepoSuite) TestGenKey(c *C) {
 	sqldb := util.GetSqliteDB()
 	defer util.FlushDB(sqldb)
-	local := store.DBStore(sqldb, make(map[string]json.RawMessage))
+	local := store.DBStore(sqldb, "")
 	r, err := NewRepo(local)
 	c.Assert(err, IsNil)
 
@@ -267,7 +271,7 @@ func (RepoSuite) TestGenKey(c *C) {
 func (RepoSuite) TestRevokeKey(c *C) {
 	db := util.GetSqliteDB()
 	defer util.FlushDB(db)
-	local := store.DBStore(db, make(map[string]json.RawMessage))
+	local := store.DBStore(db, "")
 	r, err := NewRepo(local)
 	c.Assert(err, IsNil)
 
@@ -315,10 +319,11 @@ func (RepoSuite) TestRevokeKey(c *C) {
 }
 
 func (RepoSuite) TestSign(c *C) {
-	meta := map[string]json.RawMessage{"root.json": []byte(`{"signed":{},"signatures":[]}`)}
+	baseMeta := map[string]json.RawMessage{"root.json": []byte(`{"signed":{},"signatures":[]}`)}
 	db := util.GetSqliteDB()
 	defer util.FlushDB(db)
-	local := store.DBStore(db, meta)
+	local := store.DBStore(db, "")
+	local.SetMeta("root.json", baseMeta["root.json"])
 	r, err := NewRepo(local)
 	c.Assert(err, IsNil)
 
@@ -326,12 +331,18 @@ func (RepoSuite) TestSign(c *C) {
 	c.Assert(r.Sign("root.json"), Equals, ErrInsufficientKeys{"root.json"})
 
 	checkSigIDs := func(keyIDs ...string) {
+		meta, err := local.GetMeta()
+		if err != nil {
+			c.Fatal("failed to retrieve meta")
+		}
 		rootJSON, ok := meta["root.json"]
 		if !ok {
 			c.Fatal("missing root.json")
 		}
 		s := &data.Signed{}
 		c.Assert(json.Unmarshal(rootJSON, s), IsNil)
+		fmt.Println("Len Signatures", len(s.Signatures))
+		fmt.Println("Len KeyIDs", len(keyIDs))
 		c.Assert(s.Signatures, HasLen, len(keyIDs))
 		for i, id := range keyIDs {
 			c.Assert(s.Signatures[i].KeyID, Equals, id)
@@ -361,7 +372,7 @@ func (RepoSuite) TestCommit(c *C) {
 	//files := map[string][]byte{"/foo.txt": []byte("foo"), "/bar.txt": []byte("bar")}
 	db := util.GetSqliteDB()
 	defer util.FlushDB(db)
-	local := store.DBStore(db, make(map[string]json.RawMessage))
+	local := store.DBStore(db, "")
 	r, err := NewRepo(local)
 	c.Assert(err, IsNil)
 
@@ -640,7 +651,7 @@ func (RepoSuite) TestExpiresAndVersion(c *C) {
 	//files := map[string][]byte{"/foo.txt": []byte("foo")}
 	db := util.GetSqliteDB()
 	defer util.FlushDB(db)
-	local := store.DBStore(db, make(map[string]json.RawMessage))
+	local := store.DBStore(db, "")
 	r, err := NewRepo(local)
 	c.Assert(err, IsNil)
 
@@ -728,7 +739,7 @@ func (RepoSuite) TestHashAlgorithm(c *C) {
 	//files := map[string][]byte{"/foo.txt": []byte("foo")}
 	db := util.GetSqliteDB()
 	defer util.FlushDB(db)
-	local := store.DBStore(db, make(map[string]json.RawMessage))
+	local := store.DBStore(db, "docker.io/testImage")
 	type hashTest struct {
 		args     []string
 		expected []string
