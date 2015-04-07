@@ -38,8 +38,8 @@ func (k *Key) ID() string {
 }
 
 type KeyValue struct {
-	Public  HexBytes `json:"public"`
-	Private HexBytes `json:"private,omitempty"`
+	Public HexBytes `json:"public"`
+	//Private HexBytes `json:"private,omitempty"`
 }
 
 func DefaultExpires(role string) time.Time {

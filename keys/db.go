@@ -32,9 +32,9 @@ func NewKey() (*Key, error) {
 }
 
 type Key struct {
-	ID      string
-	Public  [ed25519.PublicKeySize]byte
-	Private *[ed25519.PrivateKeySize]byte
+	ID     string
+	Public [ed25519.PublicKeySize]byte
+	//Private *[ed25519.PrivateKeySize]byte
 }
 
 func (k *Key) Serialize() *data.Key {
