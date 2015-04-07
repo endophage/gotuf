@@ -6,6 +6,8 @@ import (
 	"github.com/docker/go-tuf/data"
 )
 
+// Sign takes a data.Signed and a key, calculated and adds the signature
+// to the data.Signed
 func Sign(s *data.Signed, k *data.Key) {
 	id := k.ID()
 	signatures := make([]data.Signature, 0, len(s.Signatures)+1)

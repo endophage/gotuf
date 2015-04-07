@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path"
 	"strings"
 
 	"code.google.com/p/go-sqlite/go1/sqlite3"
 	"github.com/docker/go-tuf/data"
+	"github.com/docker/go-tuf/util"
 )
 
 const (
@@ -23,6 +25,7 @@ type dbStore struct {
 	imageName string
 }
 
+// DBStore takes a database connection and the QDN of the image
 func DBStore(db *sqlite3.Conn, imageName string) *dbStore {
 	store := dbStore{
 		db:        db,
@@ -130,6 +133,7 @@ func (dbs *dbStore) Clean() error {
 
 // AddBlob adds an object to the store
 func (dbs *dbStore) AddBlob(path string, meta data.FileMeta) {
+	path = util.NormalizeTarget(path)
 	jsonbytes := []byte{}
 	if meta.Custom != nil {
 		jsonbytes, _ = meta.Custom.MarshalJSON()
@@ -204,9 +208,15 @@ func (dbs *dbStore) writeFile(name string, content []byte) error {
 	dirPath := path.Dir(fullPath)
 	err := os.MkdirAll(dirPath, 0744)
 	if err != nil {
+		log.Printf("error creating directory path to TUF cache")
 		return err
 	}
-	return ioutil.WriteFile(fullPath, content, 0744)
+
+	err = ioutil.WriteFile(fullPath, content, 0744)
+	if err != nil {
+		log.Printf("Error writing file")
+	}
+	return err
 }
 
 func (dbs *dbStore) readFile(name string) ([]byte, error) {
