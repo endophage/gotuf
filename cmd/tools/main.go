@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/docker/go-tuf"
-	"github.com/docker/go-tuf/Godeps/_workspace/src/github.com/flynn/go-docopt"
-	"github.com/docker/go-tuf/store"
-	"github.com/docker/go-tuf/util"
+	"github.com/endophage/go-tuf"
+	"github.com/endophage/go-tuf/Godeps/_workspace/src/github.com/flynn/go-docopt"
+	"github.com/endophage/go-tuf/store"
+	"github.com/endophage/go-tuf/util"
 )
 
 func main() {
