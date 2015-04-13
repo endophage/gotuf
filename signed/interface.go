@@ -1,8 +1,8 @@
 package signed
 
 import (
-	"github.com/docker/go-tuf/data"
-	"github.com/docker/go-tuf/keys"
+	"github.com/endophage/go-tuf/data"
+	"github.com/endophage/go-tuf/keys"
 )
 
 type Signer interface {

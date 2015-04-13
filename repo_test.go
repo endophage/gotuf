@@ -10,14 +10,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/go-tuf/Godeps/_workspace/src/github.com/agl/ed25519"
-	. "github.com/docker/go-tuf/Godeps/_workspace/src/gopkg.in/check.v1"
-	"github.com/docker/go-tuf/data"
-	"github.com/docker/go-tuf/store"
-	//	"github.com/docker/go-tuf/encrypted"
-	"github.com/docker/go-tuf/keys"
-	"github.com/docker/go-tuf/signed"
-	"github.com/docker/go-tuf/util"
+	"github.com/endophage/go-tuf/Godeps/_workspace/src/github.com/agl/ed25519"
+	. "github.com/endophage/go-tuf/Godeps/_workspace/src/gopkg.in/check.v1"
+	"github.com/endophage/go-tuf/data"
+	"github.com/endophage/go-tuf/store"
+	//	"github.com/endophage/go-tuf/encrypted"
+	"github.com/endophage/go-tuf/keys"
+	"github.com/endophage/go-tuf/signed"
+	"github.com/endophage/go-tuf/util"
 )
 
 // Hook up gocheck into the "go test" runner.

@@ -11,8 +11,8 @@ import (
 	"strings"
 
 	"code.google.com/p/go-sqlite/go1/sqlite3"
-	"github.com/docker/go-tuf/data"
-	"github.com/docker/go-tuf/util"
+	"github.com/endophage/go-tuf/data"
+	"github.com/endophage/go-tuf/util"
 )
 
 const (

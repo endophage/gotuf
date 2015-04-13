@@ -13,7 +13,7 @@ import (
 	gopath "path"
 	"path/filepath"
 
-	"github.com/docker/go-tuf/data"
+	"github.com/endophage/go-tuf/data"
 )
 
 var ErrWrongLength = errors.New("wrong length")

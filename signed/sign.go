@@ -1,9 +1,9 @@
 package signed
 
 import (
-	"github.com/docker/go-tuf/Godeps/_workspace/src/github.com/agl/ed25519"
-	cjson "github.com/docker/go-tuf/Godeps/_workspace/src/github.com/tent/canonical-json-go"
-	"github.com/docker/go-tuf/data"
+	"github.com/endophage/go-tuf/Godeps/_workspace/src/github.com/agl/ed25519"
+	cjson "github.com/endophage/go-tuf/Godeps/_workspace/src/github.com/tent/canonical-json-go"
+	"github.com/endophage/go-tuf/data"
 )
 
 // Sign takes a data.Signed and a key, calculated and adds the signature

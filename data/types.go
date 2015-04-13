@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/docker/go-tuf/Godeps/_workspace/src/github.com/tent/canonical-json-go"
+	"github.com/endophage/go-tuf/Godeps/_workspace/src/github.com/tent/canonical-json-go"
 )
 
 const KeyIDLength = sha256.Size * 2
