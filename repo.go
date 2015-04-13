@@ -37,13 +37,14 @@ var snapshotManifests = []string{
 }
 
 type Repo struct {
+	trust          signed.Signer
 	local          store.LocalStore
 	hashAlgorithms []string
 	meta           map[string]json.RawMessage
 }
 
-func NewRepo(local store.LocalStore, hashAlgorithms ...string) (*Repo, error) {
-	r := &Repo{local: local, hashAlgorithms: hashAlgorithms}
+func NewRepo(trust signed.Signer, local store.LocalStore, hashAlgorithms ...string) (*Repo, error) {
+	r := &Repo{trust: trust, local: local, hashAlgorithms: hashAlgorithms}
 
 	var err error
 	r.meta, err = local.GetMeta()
@@ -167,11 +168,12 @@ func (r *Repo) GenKeyWithExpires(keyRole string, expires time.Time) (string, err
 		return "", err
 	}
 
-	key, err := keys.NewKey()
+	key, err := r.trust.NewKey("ed25519")
 	if err != nil {
 		return "", err
 	}
-	if err := r.local.SaveKey(keyRole, key.SerializePrivate()); err != nil {
+	serialized = key.Serialize()
+	if err := r.local.SaveKey(keyRole, serialized); err != nil {
 		return "", err
 	}
 
@@ -182,7 +184,7 @@ func (r *Repo) GenKeyWithExpires(keyRole string, expires time.Time) (string, err
 	}
 	role.KeyIDs = append(role.KeyIDs, key.ID)
 
-	root.Keys[key.ID] = key.Serialize()
+	root.Keys[key.ID] = serialized
 	root.Expires = expires.Round(time.Second)
 	root.Version++
 
@@ -265,7 +267,7 @@ func (r *Repo) setMeta(name string, meta interface{}) error {
 	if err != nil {
 		return err
 	}
-	s, err := signed.Marshal(meta, keys...)
+	s, err := r.trust.Marshal(meta, keys...)
 	if err != nil {
 		return err
 	}
@@ -296,7 +298,7 @@ func (r *Repo) Sign(name string) error {
 		return ErrInsufficientKeys{name}
 	}
 	for _, k := range keys {
-		signed.Sign(s, k)
+		r.trust.Sign(s, k)
 	}
 
 	b, err := json.Marshal(s)

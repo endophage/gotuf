@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/endophage/go-tuf/Godeps/_workspace/src/github.com/tent/canonical-json-go"
+	"github.com/endophage/go-tuf/keys"
 )
 
 const KeyIDLength = sha256.Size * 2
@@ -20,26 +20,6 @@ type Signature struct {
 	KeyID     string   `json:"keyid"`
 	Method    string   `json:"method"`
 	Signature HexBytes `json:"sig"`
-}
-
-type Key struct {
-	Type  string   `json:"keytype"`
-	Value KeyValue `json:"keyval"`
-}
-
-func (k *Key) ID() string {
-	// create a copy so the private key is not included
-	data, _ := cjson.Marshal(&Key{
-		Type:  k.Type,
-		Value: KeyValue{Public: k.Value.Public},
-	})
-	digest := sha256.Sum256(data)
-	return hex.EncodeToString(digest[:])
-}
-
-type KeyValue struct {
-	Public HexBytes `json:"public"`
-	//Private HexBytes `json:"private,omitempty"`
 }
 
 func DefaultExpires(role string) time.Time {
@@ -58,11 +38,11 @@ func DefaultExpires(role string) time.Time {
 }
 
 type Root struct {
-	Type    string           `json:"_type"`
-	Version int              `json:"version"`
-	Expires time.Time        `json:"expires"`
-	Keys    map[string]*Key  `json:"keys"`
-	Roles   map[string]*Role `json:"roles"`
+	Type    string               `json:"_type"`
+	Version int                  `json:"version"`
+	Expires time.Time            `json:"expires"`
+	Keys    map[string]*keys.Key `json:"keys"`
+	Roles   map[string]*Role     `json:"roles"`
 
 	ConsistentSnapshot bool `json:"consistent_snapshot"`
 }
@@ -71,7 +51,7 @@ func NewRoot() *Root {
 	return &Root{
 		Type:               "Root",
 		Expires:            DefaultExpires("root"),
-		Keys:               make(map[string]*Key),
+		Keys:               make(map[string]*keys.Key),
 		Roles:              make(map[string]*Role),
 		ConsistentSnapshot: true,
 	}

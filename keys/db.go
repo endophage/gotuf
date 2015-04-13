@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/endophage/go-tuf/Godeps/_workspace/src/github.com/agl/ed25519"
+	cjson "github.com/endophage/go-tuf/Godeps/_workspace/src/github.com/tent/canonical-json-go"
 	"github.com/endophage/go-tuf/data"
 )
 
@@ -18,40 +19,38 @@ var (
 	ErrInvalidThreshold = errors.New("tuf: invalid role threshold")
 )
 
-func NewKey() (*Key, error) {
-	pub, priv, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		return nil, err
-	}
-	k := &Key{
-		Public:  *pub,
-		Private: priv,
-	}
-	k.ID = k.Serialize().ID()
-	return k, nil
+type KeyValue struct {
+	Public HexBytes `json:"public"`
+	//	Private HexBytes `json:"private,omitempty"`
 }
 
 type Key struct {
-	ID     string
-	Public [ed25519.PublicKeySize]byte
-	//Private *[ed25519.PrivateKeySize]byte
+	Type  string   `json:"keytype"`
+	Value KeyValue `json:"keyval"`
 }
 
-func (k *Key) Serialize() *data.Key {
-	return &data.Key{
-		Type:  "ed25519",
-		Value: data.KeyValue{Public: k.Public[:]},
-	}
+func (k *Key) ID() string {
+	// create a copy so the private key is not included
+	data, _ := cjson.Marshal(&Key{
+		Type:  k.Type,
+		Value: KeyValue{Public: k.Value.Public},
+	})
+	digest := sha256.Sum256(data)
+	return hex.EncodeToString(digest[:])
 }
 
-func (k *Key) SerializePrivate() *data.Key {
-	return &data.Key{
-		Type: "ed25519",
-		Value: data.KeyValue{
-			Public:  k.Public[:],
-			Private: k.Private[:],
-		},
+type PublicKey struct {
+	Key
+	ID string
+}
+
+func NewPublicKey(keyType string, public []byte) *PublicKey {
+	// create a copy so the private key is not included
+	key := Key{
+		Type:  keyType,
+		Value: KeyValue{Public: k.Value.Public},
 	}
+	return &PublicKey{key, key.ID()}
 }
 
 type Role struct {
@@ -66,31 +65,28 @@ func (r *Role) ValidKey(id string) bool {
 
 type DB struct {
 	roles map[string]*Role
-	keys  map[string]*Key
+	keys  map[string]*PublicKey
 }
 
 func NewDB() *DB {
 	return &DB{
 		roles: make(map[string]*Role),
-		keys:  make(map[string]*Key),
+		keys:  make(map[string]*PublicKey),
 	}
 }
 
-func (db *DB) AddKey(id string, k *data.Key) error {
-	if k.Type != "ed25519" {
+func (db *DB) AddKey(k *PublicKey) error {
+	if _, ok := db.Types[k.Type]; !ok {
 		return ErrWrongType
 	}
-	if id != k.ID() {
-		return ErrWrongID
-	}
-	if len(k.Value.Public) != ed25519.PublicKeySize {
-		return ErrInvalidKey
-	}
+	//if len(k.Value.Public) != ed25519.PublicKeySize {
+	//	return ErrInvalidKey
+	//}
 
-	var key Key
-	copy(key.Public[:], k.Value.Public)
-	key.ID = id
-	db.keys[id] = &key
+	var key PublicKey
+	copy(key.Value.Public[:], k.Value.Public)
+	key.ID = k.ID
+	db.keys[key.ID] = &key
 	return nil
 }
 
