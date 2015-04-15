@@ -1,8 +1,6 @@
 package signed
 
 import (
-	"encoding/json"
-
 	"github.com/endophage/go-tuf/data"
 	"github.com/endophage/go-tuf/keys"
 )
@@ -12,8 +10,8 @@ type SigningService interface {
 }
 
 type KeyService interface {
-	Create(keyType string) (keys.PublicKey, error)
-	PublicKeys(keyIDs ...string) (map[string]keys.PublicKey, error)
+	Create() (*keys.PublicKey, error)
+	PublicKeys(keyIDs ...string) (map[string]*keys.PublicKey, error)
 }
 
 type TrustService interface {

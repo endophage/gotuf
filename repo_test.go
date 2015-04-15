@@ -3,7 +3,6 @@ package tuf
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -15,7 +14,7 @@ import (
 	"github.com/endophage/go-tuf/data"
 	"github.com/endophage/go-tuf/store"
 	//	"github.com/endophage/go-tuf/encrypted"
-	"github.com/endophage/go-tuf/keys"
+	tuferr "github.com/endophage/go-tuf/errors"
 	"github.com/endophage/go-tuf/signed"
 	"github.com/endophage/go-tuf/util"
 )
@@ -28,6 +27,9 @@ type RepoSuite struct{}
 var _ = Suite(&RepoSuite{})
 
 func (RepoSuite) TestNewRepo(c *C) {
+	trust := signed.NewEd25519()
+	signer := signed.NewSigner(trust)
+
 	meta := map[string]json.RawMessage{
 		"root.json": []byte(`{
 		  "signed": {
@@ -75,7 +77,7 @@ func (RepoSuite) TestNewRepo(c *C) {
 		local.SetMeta(k, v)
 	}
 
-	r, err := NewRepo(local)
+	r, err := NewRepo(signer, local, "sha256")
 	c.Assert(err, IsNil)
 
 	root, err := r.root()
@@ -108,6 +110,9 @@ func (RepoSuite) TestNewRepo(c *C) {
 }
 
 func (RepoSuite) TestInit(c *C) {
+	trust := signed.NewEd25519()
+	signer := signed.NewSigner(trust)
+
 	db := util.GetSqliteDB()
 	defer util.FlushDB(db)
 	local := store.DBStore(
@@ -117,7 +122,7 @@ func (RepoSuite) TestInit(c *C) {
 	)
 	local.AddBlob("/foo.txt", util.SampleMeta())
 
-	r, err := NewRepo(local)
+	r, err := NewRepo(signer, local, "sha256")
 	c.Assert(err, IsNil)
 
 	// Init() sets root.ConsistentSnapshot
@@ -130,7 +135,7 @@ func (RepoSuite) TestInit(c *C) {
 
 	// Init() fails if targets have been added
 	c.Assert(r.AddTarget("foo.txt", nil), IsNil)
-	c.Assert(r.Init(true), Equals, ErrInitNotAllowed)
+	c.Assert(r.Init(true), Equals, tuferr.ErrInitNotAllowed)
 }
 
 func genKey(c *C, r *Repo, role string) string {
@@ -140,15 +145,18 @@ func genKey(c *C, r *Repo, role string) string {
 }
 
 func (RepoSuite) TestGenKey(c *C) {
+	trust := signed.NewEd25519()
+	signer := signed.NewSigner(trust)
+
 	sqldb := util.GetSqliteDB()
 	defer util.FlushDB(sqldb)
 	local := store.DBStore(sqldb, "")
-	r, err := NewRepo(local)
+	r, err := NewRepo(signer, local, "sha256")
 	c.Assert(err, IsNil)
 
 	// generate a key for an unknown role
 	_, err = r.GenKey("foo")
-	c.Assert(err, Equals, ErrInvalidRole{"foo"})
+	c.Assert(err, Equals, tuferr.ErrInvalidRole{"foo"})
 
 	// generate a root key
 	id := genKey(c, r, "root")
@@ -173,7 +181,7 @@ func (RepoSuite) TestGenKey(c *C) {
 	}
 	c.Assert(k.ID(), Equals, keyID)
 	c.Assert(k.Value.Public, HasLen, ed25519.PublicKeySize)
-	c.Assert(k.Value.Private, IsNil)
+	//c.Assert(k.Value.Private, IsNil)
 
 	// check root key + role are in db
 	db, err := r.db()
@@ -182,7 +190,7 @@ func (RepoSuite) TestGenKey(c *C) {
 	c.Assert(rootKey, NotNil)
 	c.Assert(rootKey.ID, Equals, keyID)
 	role := db.GetRole("root")
-	c.Assert(role.KeyIDs, DeepEquals, map[string]struct{}{keyID: {}})
+	c.Assert(role.KeyIDs, DeepEquals, []string{keyID})
 
 	// check the key was saved correctly
 	localKeys, err := local.GetKeys("root")
@@ -195,8 +203,8 @@ func (RepoSuite) TestGenKey(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rootKeys, HasLen, 1)
 	c.Assert(rootKeys[0].ID(), Equals, rootKey.ID)
-	c.Assert(rootKeys[0].Value.Public, DeepEquals, rootKey.Serialize().Value.Public)
-	c.Assert(rootKeys[0].Value.Private, IsNil)
+	c.Assert(rootKeys[0].Value.Public, DeepEquals, rootKey.Key.Value.Public)
+	//c.Assert(rootKeys[0].Value.Private, IsNil)
 
 	// generate two targets keys
 	genKey(c, r, "targets")
@@ -212,11 +220,11 @@ func (RepoSuite) TestGenKey(c *C) {
 		c.Fatal("missing targets role")
 	}
 	c.Assert(targetsRole.KeyIDs, HasLen, 2)
-	targetKeyIDs := make(map[string]struct{}, 2)
+	targetKeyIDs := make([]string, 0, 2)
 	db, err = r.db()
 	c.Assert(err, IsNil)
 	for _, id := range targetsRole.KeyIDs {
-		targetKeyIDs[id] = struct{}{}
+		targetKeyIDs = append(targetKeyIDs, id)
 		_, ok = root.Keys[id]
 		if !ok {
 			c.Fatal("missing key")
@@ -269,17 +277,20 @@ func (RepoSuite) TestGenKey(c *C) {
 }
 
 func (RepoSuite) TestRevokeKey(c *C) {
+	trust := signed.NewEd25519()
+	signer := signed.NewSigner(trust)
+
 	db := util.GetSqliteDB()
 	defer util.FlushDB(db)
 	local := store.DBStore(db, "")
-	r, err := NewRepo(local)
+	r, err := NewRepo(signer, local, "sha256")
 	c.Assert(err, IsNil)
 
 	// revoking a key for an unknown role returns ErrInvalidRole
-	c.Assert(r.RevokeKey("foo", ""), DeepEquals, ErrInvalidRole{"foo"})
+	c.Assert(r.RevokeKey("foo", ""), DeepEquals, tuferr.ErrInvalidRole{"foo"})
 
 	// revoking a key which doesn't exist returns ErrKeyNotFound
-	c.Assert(r.RevokeKey("root", "nonexistent"), DeepEquals, ErrKeyNotFound{"root", "nonexistent"})
+	c.Assert(r.RevokeKey("root", "nonexistent"), DeepEquals, tuferr.ErrKeyNotFound{"root", "nonexistent"})
 
 	// generate keys
 	genKey(c, r, "root")
@@ -319,16 +330,19 @@ func (RepoSuite) TestRevokeKey(c *C) {
 }
 
 func (RepoSuite) TestSign(c *C) {
+	trust := signed.NewEd25519()
+	signer := signed.NewSigner(trust)
+
 	baseMeta := map[string]json.RawMessage{"root.json": []byte(`{"signed":{},"signatures":[]}`)}
 	db := util.GetSqliteDB()
 	defer util.FlushDB(db)
 	local := store.DBStore(db, "")
 	local.SetMeta("root.json", baseMeta["root.json"])
-	r, err := NewRepo(local)
+	r, err := NewRepo(signer, local, "sha256")
 	c.Assert(err, IsNil)
 
 	// signing with no keys returns ErrInsufficientKeys
-	c.Assert(r.Sign("root.json"), Equals, ErrInsufficientKeys{"root.json"})
+	c.Assert(r.Sign("root.json"), Equals, tuferr.ErrInsufficientKeys{"root.json"})
 
 	checkSigIDs := func(keyIDs ...string) {
 		meta, err := local.GetMeta()
@@ -341,8 +355,6 @@ func (RepoSuite) TestSign(c *C) {
 		}
 		s := &data.Signed{}
 		c.Assert(json.Unmarshal(rootJSON, s), IsNil)
-		fmt.Println("Len Signatures", len(s.Signatures))
-		fmt.Println("Len KeyIDs", len(keyIDs))
 		c.Assert(s.Signatures, HasLen, len(keyIDs))
 		for i, id := range keyIDs {
 			c.Assert(s.Signatures[i].KeyID, Equals, id)
@@ -350,53 +362,58 @@ func (RepoSuite) TestSign(c *C) {
 	}
 
 	// signing with an available key generates a signature
-	key, err := keys.NewKey()
+	//key, err := signer.NewKey()
+	kID, err := r.GenKey("root")
 	c.Assert(err, IsNil)
-	c.Assert(local.SaveKey("root", key.SerializePrivate()), IsNil)
+	//c.Assert(local.SaveKey("root", key.SerializePrivate()), IsNil)
 	c.Assert(r.Sign("root.json"), IsNil)
-	checkSigIDs(key.ID)
+	checkSigIDs(kID)
 
 	// signing again does not generate a duplicate signature
 	c.Assert(r.Sign("root.json"), IsNil)
-	checkSigIDs(key.ID)
+	checkSigIDs(kID)
 
 	// signing with a new available key generates another signature
-	newKey, err := keys.NewKey()
+	//newKey, err := signer.NewKey()
+	newkID, err := r.GenKey("root")
 	c.Assert(err, IsNil)
-	c.Assert(local.SaveKey("root", newKey.SerializePrivate()), IsNil)
+	//c.Assert(local.SaveKey("root", newKey.SerializePrivate()), IsNil)
 	c.Assert(r.Sign("root.json"), IsNil)
-	checkSigIDs(key.ID, newKey.ID)
+	checkSigIDs(kID, newkID)
 }
 
 func (RepoSuite) TestCommit(c *C) {
+	trust := signed.NewEd25519()
+	signer := signed.NewSigner(trust)
+
 	//files := map[string][]byte{"/foo.txt": []byte("foo"), "/bar.txt": []byte("bar")}
 	db := util.GetSqliteDB()
 	defer util.FlushDB(db)
 	local := store.DBStore(db, "")
-	r, err := NewRepo(local)
+	r, err := NewRepo(signer, local, "sha256")
 	c.Assert(err, IsNil)
 
 	// commit without root.json
-	c.Assert(r.Commit(), DeepEquals, ErrMissingMetadata{"root.json"})
+	c.Assert(r.Commit(), DeepEquals, tuferr.ErrMissingMetadata{"root.json"})
 
 	// commit without targets.json
 	genKey(c, r, "root")
-	c.Assert(r.Commit(), DeepEquals, ErrMissingMetadata{"targets.json"})
+	c.Assert(r.Commit(), DeepEquals, tuferr.ErrMissingMetadata{"targets.json"})
 
 	// commit without snapshot.json
 	genKey(c, r, "targets")
 	local.AddBlob("/foo.txt", util.SampleMeta())
 	c.Assert(r.AddTarget("foo.txt", nil), IsNil)
-	c.Assert(r.Commit(), DeepEquals, ErrMissingMetadata{"snapshot.json"})
+	c.Assert(r.Commit(), DeepEquals, tuferr.ErrMissingMetadata{"snapshot.json"})
 
 	// commit without timestamp.json
 	genKey(c, r, "snapshot")
 	c.Assert(r.Snapshot(CompressionTypeNone), IsNil)
-	c.Assert(r.Commit(), DeepEquals, ErrMissingMetadata{"timestamp.json"})
+	c.Assert(r.Commit(), DeepEquals, tuferr.ErrMissingMetadata{"timestamp.json"})
 
 	// commit with timestamp.json but no timestamp key
 	c.Assert(r.Timestamp(), IsNil)
-	c.Assert(r.Commit(), DeepEquals, ErrInsufficientSignatures{"timestamp.json", signed.ErrNoSignatures})
+	c.Assert(r.Commit(), DeepEquals, tuferr.ErrInsufficientSignatures{"timestamp.json", signed.ErrNoSignatures})
 
 	// commit success
 	genKey(c, r, "timestamp")
@@ -436,7 +453,7 @@ func (RepoSuite) TestCommit(c *C) {
 	c.Assert(r.RevokeKey("timestamp", role.KeyIDs[0]), IsNil)
 	c.Assert(r.Snapshot(CompressionTypeNone), IsNil)
 	c.Assert(r.Timestamp(), IsNil)
-	c.Assert(r.Commit(), DeepEquals, ErrNotEnoughKeys{"timestamp", 0, 1})
+	c.Assert(r.Commit(), DeepEquals, tuferr.ErrNotEnoughKeys{"timestamp", 0, 1})
 }
 
 type tmpDir struct {
@@ -648,11 +665,14 @@ func (t *tmpDir) readFile(path string) []byte {
 //}
 
 func (RepoSuite) TestExpiresAndVersion(c *C) {
+	trust := signed.NewEd25519()
+	signer := signed.NewSigner(trust)
+
 	//files := map[string][]byte{"/foo.txt": []byte("foo")}
 	db := util.GetSqliteDB()
 	defer util.FlushDB(db)
 	local := store.DBStore(db, "")
-	r, err := NewRepo(local)
+	r, err := NewRepo(signer, local, "sha256")
 	c.Assert(err, IsNil)
 
 	past := time.Now().Add(-1 * time.Second)
@@ -664,7 +684,7 @@ func (RepoSuite) TestExpiresAndVersion(c *C) {
 		r.SnapshotWithExpires(CompressionTypeNone, past),
 		r.TimestampWithExpires(past),
 	} {
-		c.Assert(err, Equals, ErrInvalidExpires{past})
+		c.Assert(err, Equals, tuferr.ErrInvalidExpires{past})
 	}
 
 	genKey(c, r, "root")
@@ -736,6 +756,9 @@ func (RepoSuite) TestExpiresAndVersion(c *C) {
 }
 
 func (RepoSuite) TestHashAlgorithm(c *C) {
+	trust := signed.NewEd25519()
+	signer := signed.NewSigner(trust)
+
 	//files := map[string][]byte{"/foo.txt": []byte("foo")}
 	db := util.GetSqliteDB()
 	defer util.FlushDB(db)
@@ -750,7 +773,7 @@ func (RepoSuite) TestHashAlgorithm(c *C) {
 		{args: []string{"sha512", "sha256"}},
 	} {
 		// generate metadata with specific hash functions
-		r, err := NewRepo(local, test.args...)
+		r, err := NewRepo(signer, local, test.args...)
 		c.Assert(err, IsNil)
 		genKey(c, r, "root")
 		genKey(c, r, "targets")
