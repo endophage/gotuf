@@ -393,7 +393,7 @@ func (r *Repo) AddTargetsWithExpires(paths []string, custom json.RawMessage, exp
 		normalizedPaths[i] = util.NormalizeTarget(path)
 	}
 	if err := r.local.WalkStagedTargets(normalizedPaths, func(path string, meta data.FileMeta) (err error) {
-		t.Targets[path] = meta
+		t.Targets[util.NormalizeTarget(path)] = meta
 		return nil
 	}); err != nil {
 		return err

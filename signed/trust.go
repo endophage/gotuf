@@ -21,8 +21,8 @@ func NewEd25519() *Ed25519 {
 	}
 }
 
-// AddKey allows you to add a private key to the trust service
-func (trust *Ed25519) AddKey(k *keys.PrivateKey) {
+// addKey allows you to add a private key to the trust service
+func (trust *Ed25519) addKey(k *keys.PrivateKey) {
 	key := keys.PrivateKey{
 		PublicKey: keys.PublicKey{
 			Key: data.Key{
@@ -74,7 +74,7 @@ func (trust *Ed25519) Create() (*keys.PublicKey, error) {
 	copy(privBytes, priv[:])
 	public := keys.NewPublicKey("ed25519", pubBytes)
 	private := keys.PrivateKey{*public, privBytes}
-	trust.AddKey(&private)
+	trust.addKey(&private)
 	return public, nil
 }
 
