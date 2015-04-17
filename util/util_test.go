@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"testing"
 
-	. "github.com/endophage/go-tuf/Godeps/_workspace/src/gopkg.in/check.v1"
+	. "gopkg.in/check.v1"
 	"github.com/endophage/go-tuf/data"
 )
 

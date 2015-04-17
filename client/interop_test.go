@@ -13,8 +13,8 @@ import (
 	"strings"
 
 	"github.com/flynn/go-tuf"
-	"github.com/flynn/go-tuf/Godeps/_workspace/src/github.com/agl/ed25519"
-	. "github.com/flynn/go-tuf/Godeps/_workspace/src/gopkg.in/check.v1"
+	"github.com/agl/ed25519"
+	. "gopkg.in/check.v1"
 	"github.com/flynn/go-tuf/data"
 	"github.com/flynn/go-tuf/util"
 )

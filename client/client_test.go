@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/flynn/go-tuf"
-	. "github.com/flynn/go-tuf/Godeps/_workspace/src/gopkg.in/check.v1"
+	. "gopkg.in/check.v1"
 	"github.com/flynn/go-tuf/data"
 	"github.com/flynn/go-tuf/keys"
 	"github.com/flynn/go-tuf/signed"

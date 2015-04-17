@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"os"
 
-	"github.com/flynn/go-tuf/Godeps/_workspace/src/github.com/boltdb/bolt"
+	"github.com/boltdb/bolt"
 )
 
 // Collect stats for all top level buckets matching the prefix.

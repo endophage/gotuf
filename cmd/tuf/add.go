@@ -4,7 +4,7 @@ import (
 	//	"encoding/json"
 
 	"github.com/flynn/go-tuf"
-	"github.com/flynn/go-tuf/Godeps/_workspace/src/github.com/flynn/go-docopt"
+	"github.com/flynn/go-docopt"
 )
 
 func init() {

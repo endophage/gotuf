@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"code.google.com/p/go.crypto/curve25519"
-	"github.com/flynn/go-tuf/Godeps/_workspace/src/github.com/agl/ed25519"
+	"github.com/agl/ed25519"
 )
 
 func TestCurve25519Conversion(t *testing.T) {

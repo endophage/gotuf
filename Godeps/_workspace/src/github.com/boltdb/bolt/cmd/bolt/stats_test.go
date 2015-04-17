@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/flynn/go-tuf/Godeps/_workspace/src/github.com/boltdb/bolt"
-	. "github.com/flynn/go-tuf/Godeps/_workspace/src/github.com/boltdb/bolt/cmd/bolt"
+	"github.com/boltdb/bolt"
+	. "github.com/boltdb/bolt/cmd/bolt"
 )
 
 func TestStats(t *testing.T) {

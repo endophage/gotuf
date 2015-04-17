@@ -4,7 +4,7 @@
 package check_test
 
 import (
-	"github.com/flynn/go-tuf/Godeps/_workspace/src/gopkg.in/check.v1"
+	"gopkg.in/check.v1"
 	"os"
 	"reflect"
 	"runtime"

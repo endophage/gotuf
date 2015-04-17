@@ -12,7 +12,7 @@ import (
 	"runtime/pprof"
 	"time"
 
-	"github.com/flynn/go-tuf/Godeps/_workspace/src/github.com/boltdb/bolt"
+	"github.com/boltdb/bolt"
 )
 
 // File handlers for the various profiles.

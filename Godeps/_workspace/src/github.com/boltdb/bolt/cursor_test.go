@@ -9,7 +9,7 @@ import (
 	"testing"
 	"testing/quick"
 
-	"github.com/flynn/go-tuf/Godeps/_workspace/src/github.com/boltdb/bolt"
+	"github.com/boltdb/bolt"
 )
 
 // Ensure that a cursor can return a reference to the bucket that created it.

@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/endophage/go-tuf/Godeps/_workspace/src/github.com/agl/ed25519"
-	cjson "github.com/endophage/go-tuf/Godeps/_workspace/src/github.com/tent/canonical-json-go"
-	. "github.com/endophage/go-tuf/Godeps/_workspace/src/gopkg.in/check.v1"
+	"github.com/agl/ed25519"
+	cjson "github.com/tent/canonical-json-go"
+	. "gopkg.in/check.v1"
 
 	"github.com/endophage/go-tuf/data"
 	"github.com/endophage/go-tuf/keys"
