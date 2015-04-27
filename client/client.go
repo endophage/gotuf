@@ -7,10 +7,10 @@ import (
 	"io"
 	"io/ioutil"
 
-	"github.com/flynn/go-tuf/data"
-	"github.com/flynn/go-tuf/keys"
-	"github.com/flynn/go-tuf/signed"
-	"github.com/flynn/go-tuf/util"
+	"github.com/endophage/go-tuf/data"
+	"github.com/endophage/go-tuf/keys"
+	"github.com/endophage/go-tuf/signed"
+	"github.com/endophage/go-tuf/util"
 )
 
 // LocalStore is local storage for downloaded top-level metadata.
