@@ -101,8 +101,9 @@ func (c *Client) Init(rootKeys []*data.Key, threshold int) error {
 	rootKeyIDs := make([]string, len(rootKeys))
 	for i, key := range rootKeys {
 		id := key.ID()
+		pk := keys.PublicKey{*key, id}
 		rootKeyIDs[i] = id
-		if err := c.db.AddKey(id, key); err != nil {
+		if err := c.db.AddKey(&pk); err != nil {
 			return err
 		}
 	}
@@ -268,8 +269,9 @@ func (c *Client) getLocalMeta() error {
 			return err
 		}
 		db := keys.NewDB()
-		for id, k := range root.Keys {
-			if err := db.AddKey(id, k); err != nil {
+		for _, k := range root.Keys {
+			pk := keys.PublicKey{*k, k.ID()}
+			if err := db.AddKey(&pk); err != nil {
 				return err
 			}
 		}
