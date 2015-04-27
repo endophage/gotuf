@@ -562,6 +562,16 @@ func (c *Client) Download(name string, dest Destination) (err error) {
 	}
 	defer r.Close()
 
+	return c.Verify(name, r, size, dest)
+}
+
+func (c *Client) Verify(name string, r io.Reader, size int64, dest Destination) error {
+	normalizedName := util.NormalizeTarget(name)
+	localMeta, ok := c.targets[normalizedName]
+	if !ok {
+		return ErrUnknownTarget{name}
+	}
+
 	// return ErrWrongSize if the reported size is known and incorrect
 	if size >= 0 && size != localMeta.Length {
 		return ErrWrongSize{name, size, localMeta.Length}
@@ -585,6 +595,7 @@ func (c *Client) Download(name string, dest Destination) (err error) {
 	}
 
 	return nil
+
 }
 
 // Targets returns the complete list of available targets.
