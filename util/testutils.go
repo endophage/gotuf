@@ -1,9 +1,10 @@
 package util
 
 import (
+	"database/sql"
 	"os"
 
-	"code.google.com/p/go-sqlite/go1/sqlite3"
+	_ "code.google.com/p/gosqlite/sqlite3"
 	"github.com/endophage/go-tuf/data"
 )
 
@@ -18,19 +19,18 @@ func SampleMeta() data.FileMeta {
 	return meta
 }
 
-func GetSqliteDB() *sqlite3.Conn {
-	conn, err := sqlite3.Open("")
+func GetSqliteDB() *sql.DB {
+	conn, err := sql.Open("sqlite3", "/tmp/file.db")
 	if err != nil {
 		panic("can't connect to db")
 	}
 	conn.Exec("CREATE TABLE keys (id int auto_increment, namespace varchar(255) not null, role varchar(255) not null, key text not null, primary key (id));")
 	conn.Exec("CREATE TABLE filehashes(namespace varchar(255) not null, path varchar(255) not null, alg varchar(10) not null, hash varchar(128) not null, primary key (namespace, path, alg));")
 	conn.Exec("CREATE TABLE filemeta(namespace varchar(255) not null, path varchar(255) not null, size int not null, custom text default null, primary key (namespace, path));")
-	conn.Commit()
 	return conn
 }
 
-func FlushDB(db *sqlite3.Conn) {
+func FlushDB(db *sql.DB) {
 	db.Exec("DELETE FROM `filemeta`")
 	db.Exec("DELETE FROM `filehashes`")
 	db.Exec("DELETE FROM `keys`")
