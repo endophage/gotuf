@@ -569,6 +569,9 @@ func (c *Client) Download(name string, dest Destination) (err error) {
 
 func (c *Client) Verify(name string, r io.Reader, size int64, dest Destination) error {
 	normalizedName := util.NormalizeTarget(name)
+	if c.targets == nil {
+		return ErrUnknownTarget{name}
+	}
 	localMeta, ok := c.targets[normalizedName]
 	if !ok {
 		return ErrUnknownTarget{name}
