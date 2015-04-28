@@ -102,12 +102,14 @@ func (dbs *dbStore) GetKeys(role string) ([]*data.Key, error) {
 	var r *sql.Rows
 	var err error
 	sql := "SELECT `key` FROM `keys` WHERE `role` = ? AND `namespace` = ?;"
-	r, err = dbs.db.Query(sql, role, dbs.imageName)
+	tx, err := dbs.db.Begin()
+	defer tx.Rollback()
+	r, err = tx.Query(sql, role, dbs.imageName)
 	if err != nil {
 		return nil, err
 	}
-	more := r.Next()
-	for ; more == true; more = r.Next() {
+	defer r.Close()
+	for r.Next() {
 		var jsonStr string
 		key := data.Key{}
 		r.Scan(&jsonStr)
@@ -126,7 +128,13 @@ func (dbs *dbStore) SaveKey(role string, key *data.Key) error {
 	if err != nil {
 		return fmt.Errorf("Could not JSON Marshal Key")
 	}
-	_, err = dbs.db.Exec("INSERT INTO `keys` (`namespace`, `role`, `key`) VALUES (?,?,?);", dbs.imageName, role, string(jsonBytes))
+	tx, err := dbs.db.Begin()
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	_, err = tx.Exec("INSERT INTO `keys` (`namespace`, `role`, `key`) VALUES (?,?,?);", dbs.imageName, role, string(jsonBytes))
+	tx.Commit()
 	return err
 }
 
@@ -144,27 +152,28 @@ func (dbs *dbStore) AddBlob(path string, meta data.FileMeta) {
 		jsonbytes, _ = meta.Custom.MarshalJSON()
 	}
 
-	_, err := dbs.db.Exec("INSERT OR REPLACE INTO `filemeta` VALUES (?,?,?,?);", dbs.imageName, path, meta.Length, jsonbytes)
+	tx, err := dbs.db.Begin()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	_, err = tx.Exec("INSERT OR REPLACE INTO `filemeta` VALUES (?,?,?,?);", dbs.imageName, path, meta.Length, jsonbytes)
 	if err != nil {
 		fmt.Println(err)
 	}
+	tx.Commit()
 	dbs.addBlobHashes(path, meta.Hashes)
 }
 
 func (dbs *dbStore) addBlobHashes(path string, hashes data.Hashes) {
-	sql := "INSERT OR REPLACE INTO `filehashes` VALUES (?,?,?,?);"
-	var err error
 	tx, err := dbs.db.Begin()
 	if err != nil {
-		fmt.Println("failed to create transaction")
-		return
+		fmt.Println(err)
 	}
 	for alg, hash := range hashes {
-		_, err = dbs.db.Exec(sql, dbs.imageName, path, alg, hex.EncodeToString(hash))
+		_, err := tx.Exec("INSERT OR REPLACE INTO `filehashes` VALUES (?,?,?,?);", dbs.imageName, path, alg, hex.EncodeToString(hash))
 		if err != nil {
-			tx.Rollback()
 			fmt.Println(err)
-
 		}
 	}
 	tx.Commit()
@@ -172,26 +181,38 @@ func (dbs *dbStore) addBlobHashes(path string, hashes data.Hashes) {
 
 // RemoveBlob removes an object from the store
 func (dbs *dbStore) RemoveBlob(path string) error {
-	_, err := dbs.db.Exec("DELETE FROM `filemeta` WHERE `path`=? AND `namespace`=?", path, dbs.imageName)
+	tx, err := dbs.db.Begin()
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	_, err = tx.Exec("DELETE FROM `filemeta` WHERE `path`=? AND `namespace`=?", path, dbs.imageName)
+	if err == nil {
+		tx.Commit()
+	} else {
+		tx.Rollback()
+	}
 	return err
 }
 
 func (dbs *dbStore) loadTargets(path string) map[string]data.FileMeta {
 	var err error
 	var r *sql.Rows
+	tx, err := dbs.db.Begin()
+	defer tx.Rollback()
 	files := make(map[string]data.FileMeta)
 	sql := "SELECT `filemeta`.`path`, `size`, `alg`, `hash`, `custom` FROM `filemeta` JOIN `filehashes` ON `filemeta`.`path` = `filehashes`.`path` AND `filemeta`.`namespace` = `filehashes`.`namespace` WHERE `filemeta`.`namespace`=?"
 	if path != "" {
 		sql = fmt.Sprintf("%s %s", sql, "AND `filemeta`.`path`=?")
-		r, err = dbs.db.Query(sql, dbs.imageName, path)
+		r, err = tx.Query(sql, dbs.imageName, path)
 	} else {
-		r, err = dbs.db.Query(sql, dbs.imageName)
+		r, err = tx.Query(sql, dbs.imageName)
 	}
 	if err != nil {
 		return files
 	}
-	more := r.Next()
-	for ; more == true; more = r.Next() {
+	defer r.Close()
+	for r.Next() {
 		var absPath, alg, hash string
 		var size int64
 		var custom json.RawMessage
