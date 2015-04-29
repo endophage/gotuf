@@ -129,11 +129,10 @@ func VerifySignatures(s *data.Signed, role string, db *keys.DB) error {
 			return err
 		} else {
 			log.Printf("---------------Verification succeeded!!!---------------")
+			valid[sig.KeyID] = struct{}{}
 		}
 
 	}
-	log.Printf("Length of valid : ", len(valid))
-	log.Printf("roleData.thresh : ", roleData.Threshold)
 	if len(valid) < roleData.Threshold {
 		return ErrRoleThreshold
 	}
