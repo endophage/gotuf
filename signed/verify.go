@@ -12,7 +12,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
-	"github.com/agl/ed25519"
+	//"github.com/agl/ed25519"
 	"github.com/endophage/go-tuf/data"
 	"github.com/endophage/go-tuf/keys"
 	"github.com/tent/canonical-json-go"
@@ -82,7 +82,7 @@ func VerifySignatures(s *data.Signed, role string, db *keys.DB) error {
 
 	valid := make(map[string]struct{})
 	for _, sig := range s.Signatures {
-		var sigBytes [ed25519.SignatureSize]byte
+		//var sigBytes [ed25519.SignatureSize]byte
 		//if sig.Method != "ed25519" {
 		//	return ErrWrongMethod
 		//}
@@ -90,17 +90,19 @@ func VerifySignatures(s *data.Signed, role string, db *keys.DB) error {
 		//	return ErrInvalid
 		//}
 
-		if !roleData.ValidKey(sig.KeyID) {
-			continue
-		}
+		//if !roleData.ValidKey(sig.KeyID) {
+		//log.Printf("continuing b/c keyid was invalid: %s for roledata %s\n", sig.KeyID, roleData)
+		//continue
+		//}
 		key := db.GetKey(sig.KeyID)
 		if key == nil {
+			log.Printf("continuing b/c keyid lookup was nil: %s\n", sig.KeyID)
 			continue
 		}
 
-		copy(sigBytes[:], sig.Signature)
-		var keyBytes [ed25519.PublicKeySize]byte
-		copy(keyBytes[:], key.Value.Public)
+		//copy(sigBytes[:], sig.Signature)
+		//var keyBytes [ed25519.PublicKeySize]byte
+		//copy(keyBytes[:], key.Value.Public)
 
 		//if !ed25519.Verify(&keyBytes, msg, &sigBytes) {
 		//	return ErrInvalid
@@ -109,7 +111,7 @@ func VerifySignatures(s *data.Signed, role string, db *keys.DB) error {
 
 		//TODO(mccauley): move this to rsa.verify routine
 		digest := sha256.Sum256(msg)
-		pub, err := x509.ParsePKIXPublicKey(keyBytes[:])
+		pub, err := x509.ParsePKIXPublicKey(key.Value.Public)
 		if err != nil {
 			log.Printf("Failed to parse public key: %s\n", err)
 			return err
@@ -121,12 +123,17 @@ func VerifySignatures(s *data.Signed, role string, db *keys.DB) error {
 			return err
 		}
 
-		err = rsa.VerifyPKCS1v15(rsaPub, crypto.SHA256, digest[:], sigBytes[:])
+		err = rsa.VerifyPKCS1v15(rsaPub, crypto.SHA256, digest[:], sig.Signature)
 		if err != nil {
 			log.Printf("Failed verification: %s", err)
 			return err
+		} else {
+			log.Printf("---------------Verification succeeded!!!---------------")
 		}
+
 	}
+	log.Printf("Length of valid : ", len(valid))
+	log.Printf("roleData.thresh : ", roleData.Threshold)
 	if len(valid) < roleData.Threshold {
 		return ErrRoleThreshold
 	}
