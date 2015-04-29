@@ -8,17 +8,24 @@ import (
 
 type targetsWalkFunc func(path string, meta data.FileMeta) error
 
-type LocalStore interface {
+type MetadataStore interface {
 	GetMeta() (map[string]json.RawMessage, error)
 	SetMeta(string, json.RawMessage) error
+}
 
-	// WalkStagedTargets calls targetsFn for each staged target file in paths.
-	//
-	// If paths is empty, all staged target files will be walked.
-	WalkStagedTargets(paths []string, targetsFn targetsWalkFunc) error
-
-	Commit(map[string]json.RawMessage, bool, map[string]data.Hashes) error
+type KeyStore interface {
 	GetKeys(string) ([]*data.Key, error)
 	SaveKey(string, *data.Key) error
+}
+
+type TargetStore interface {
+	WalkStagedTargets(paths []string, targetsFn targetsWalkFunc) error
+}
+
+type LocalStore interface {
+	MetadataStore
+	KeyStore
+	TargetStore
 	Clean() error
+	Commit(map[string]json.RawMessage, bool, map[string]data.Hashes) error
 }

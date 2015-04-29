@@ -11,19 +11,9 @@ import (
 	"github.com/endophage/go-tuf/data"
 	"github.com/endophage/go-tuf/keys"
 	"github.com/endophage/go-tuf/signed"
+	"github.com/endophage/go-tuf/store"
 	"github.com/endophage/go-tuf/util"
 )
-
-// LocalStore is local storage for downloaded top-level metadata.
-type LocalStore interface {
-	// GetMeta returns top-level metadata from local storage. The keys are
-	// in the form `ROLE.json`, with ROLE being a valid top-level role.
-	GetMeta() (map[string]json.RawMessage, error)
-
-	// SetMeta persists the given top-level metadata in local storage, the
-	// name taking the same format as the keys returned by GetMeta.
-	SetMeta(name string, meta json.RawMessage) error
-}
 
 // RemoteStore downloads top-level metadata and target files from a remote
 // repository.
@@ -51,7 +41,7 @@ type RemoteStore interface {
 // Client provides methods for fetching updates from a remote repository and
 // downloading remote target files.
 type Client struct {
-	local  LocalStore
+	local  store.MetadataStore
 	remote RemoteStore
 
 	// The following four fields represent the versions of metatdata either
