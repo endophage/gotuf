@@ -78,9 +78,9 @@ func VerifySignatures(s *data.Signed, role string, db *keys.DB) error {
 	valid := make(map[string]struct{})
 	for _, sig := range s.Signatures {
 		var sigBytes [ed25519.SignatureSize]byte
-		if sig.Method != "ed25519" {
-			return ErrWrongMethod
-		}
+		//if sig.Method != "ed25519" {
+		//	return ErrWrongMethod
+		//}
 		if len(sig.Signature) != len(sigBytes) {
 			return ErrInvalid
 		}
