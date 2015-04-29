@@ -34,7 +34,15 @@ type signedMeta struct {
 	Version int       `json:"version"`
 }
 
-func Verify(s *data.Signed, role string, minVersion int, db *keys.DB) error {
+type verificationService struct {
+	verifiers map[string]Verifier
+}
+
+func NewVerificationService(verifier map[string]Verifier) verificationService {
+	return verificationService{verifiers: verifiers}
+}
+
+func (vs verificationService) Verify(s *data.Signed, role string, minVersion int, db *keys.DB) error {
 	if err := VerifySignatures(s, role, db); err != nil {
 		return err
 	}
@@ -60,7 +68,7 @@ var IsExpired = func(t time.Time) bool {
 	return t.Sub(time.Now()) <= 0
 }
 
-func VerifySignatures(s *data.Signed, role string, db *keys.DB) error {
+func (vs verificationService) VerifySignatures(s *data.Signed, role string, db *keys.DB) error {
 	if len(s.Signatures) == 0 {
 		return ErrNoSignatures
 	}
@@ -82,55 +90,27 @@ func VerifySignatures(s *data.Signed, role string, db *keys.DB) error {
 
 	valid := make(map[string]struct{})
 	for _, sig := range s.Signatures {
-		//var sigBytes [ed25519.SignatureSize]byte
-		//if sig.Method != "ed25519" {
-		//	return ErrWrongMethod
-		//}
-		//if len(sig.Signature) != len(sigBytes) {
-		//	return ErrInvalid
-		//}
-
-		//if !roleData.ValidKey(sig.KeyID) {
-		//log.Printf("continuing b/c keyid was invalid: %s for roledata %s\n", sig.KeyID, roleData)
-		//continue
-		//}
+		if !roleData.ValidKey(sig.KeyID) {
+			log.Printf("continuing b/c keyid was invalid: %s for roledata %s\n", sig.KeyID, roleData)
+			continue
+		}
 		key := db.GetKey(sig.KeyID)
 		if key == nil {
 			log.Printf("continuing b/c keyid lookup was nil: %s\n", sig.KeyID)
 			continue
 		}
 
-		//copy(sigBytes[:], sig.Signature)
-		//var keyBytes [ed25519.PublicKeySize]byte
-		//copy(keyBytes[:], key.Value.Public)
-
-		//if !ed25519.Verify(&keyBytes, msg, &sigBytes) {
-		//	return ErrInvalid
-		//}
-		//valid[sig.KeyID] = struct{}{}
-
-		//TODO(mccauley): move this to rsa.verify routine
-		digest := sha256.Sum256(msg)
-		pub, err := x509.ParsePKIXPublicKey(key.Value.Public)
-		if err != nil {
-			log.Printf("Failed to parse public key: %s\n", err)
-			return err
-		}
-
-		rsaPub, ok := pub.(*rsa.PublicKey)
+		verifier, ok := vs.verifiers[sig.Method]
 		if !ok {
-			log.Printf("Value returned from ParsePKIXPublicKey was not an RSA public key")
-			return err
+			log.Printf("continuing b/c signing method is not supported: %s\n", sig.Method)
+			continue
 		}
 
-		err = rsa.VerifyPKCS1v15(rsaPub, crypto.SHA256, digest[:], sig.Signature)
-		if err != nil {
-			log.Printf("Failed verification: %s", err)
-			return err
-		} else {
-			log.Printf("---------------Verification succeeded!!!---------------")
-			valid[sig.KeyID] = struct{}{}
+		if err := verifier.Verify(key, sig.Signature, msg); err != nil {
+			log.Printf("continuing b/c signature was invalid\n")
+			continue
 		}
+		valid[sig.KeyID] = struct{}{}
 
 	}
 	if len(valid) < roleData.Threshold {

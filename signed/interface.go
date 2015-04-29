@@ -18,3 +18,7 @@ type TrustService interface {
 	SigningService
 	KeyService
 }
+
+type Verifier interface {
+	Verify(key *data.Key, sig []byte, msg []byte) error
+}
