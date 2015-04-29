@@ -4,9 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
+	"crypto"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
 	"github.com/agl/ed25519"
 	"github.com/endophage/go-tuf/data"
 	"github.com/endophage/go-tuf/keys"
@@ -96,10 +101,31 @@ func VerifySignatures(s *data.Signed, role string, db *keys.DB) error {
 		copy(sigBytes[:], sig.Signature)
 		var keyBytes [ed25519.PublicKeySize]byte
 		copy(keyBytes[:], key.Value.Public)
-		if !ed25519.Verify(&keyBytes, msg, &sigBytes) {
-			return ErrInvalid
+
+		//if !ed25519.Verify(&keyBytes, msg, &sigBytes) {
+		//	return ErrInvalid
+		//}
+		//valid[sig.KeyID] = struct{}{}
+
+		//TODO(mccauley): move this to rsa.verify routine
+		digest := sha256.Sum256(msg)
+		pub, err := x509.ParsePKIXPublicKey(keyBytes[:])
+		if err != nil {
+			log.Printf("Failed to parse public key: %s\n", err)
+			return err
 		}
-		valid[sig.KeyID] = struct{}{}
+
+		rsaPub, ok := pub.(*rsa.PublicKey)
+		if !ok {
+			log.Printf("Value returned from ParsePKIXPublicKey was not an RSA public key")
+			return err
+		}
+
+		err = rsa.VerifyPKCS1v15(rsaPub, crypto.SHA256, digest[:], sigBytes[:])
+		if err != nil {
+			log.Printf("Failed verification: %s", err)
+			return err
+		}
 	}
 	if len(valid) < roleData.Threshold {
 		return ErrRoleThreshold
