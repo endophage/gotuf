@@ -86,9 +86,9 @@ func VerifySignatures(s *data.Signed, role string, db *keys.DB) error {
 		//if sig.Method != "ed25519" {
 		//	return ErrWrongMethod
 		//}
-		if len(sig.Signature) != len(sigBytes) {
-			return ErrInvalid
-		}
+		//if len(sig.Signature) != len(sigBytes) {
+		//	return ErrInvalid
+		//}
 
 		if !roleData.ValidKey(sig.KeyID) {
 			continue
