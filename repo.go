@@ -358,6 +358,22 @@ func (r *Repo) Sign(name string) error {
 	return r.local.SetMeta(name, b)
 }
 
+func (r *Repo) GetKeys(name string) ([]*keys.PublicKey, error) {
+	return r.getKeys(name)
+}
+
+func (r *Repo) GetKeyIDs(name string) ([]string, error) {
+	keys, err := r.getKeys(name)
+	if err != nil {
+		return nil, err
+	}
+	keyIDs := make([]string, 0, len(keys))
+	for _, value := range keys {
+		keyIDs = append(keyIDs, value.ID)
+	}
+	return keyIDs, nil
+}
+
 // getKeys returns signing keys from local storage.
 //
 // Only keys contained in the keys db are returned (i.e. local keys which have

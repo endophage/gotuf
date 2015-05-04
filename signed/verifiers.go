@@ -24,7 +24,7 @@ var Verifiers = map[string]Verifier{
 // RegisterVerifier provides a convenience function for init() functions
 // to register additional verifiers or replace existing ones.
 func RegisterVerifier(name string, v Verifier) {
-	curr, ok := verifiers[name]
+	curr, ok := Verifiers[name]
 	if ok {
 		typOld := reflect.TypeOf(curr)
 		typNew := reflect.TypeOf(v)
@@ -36,7 +36,7 @@ func RegisterVerifier(name string, v Verifier) {
 	} else {
 		logrus.Debug("Adding verifier for: ", name)
 	}
-	verifiers[name] = v
+	Verifiers[name] = v
 }
 
 type Ed25519Verifier struct{}
@@ -54,7 +54,7 @@ func (v Ed25519Verifier) Verify(key *data.Key, sig []byte, msg []byte) error {
 	copy(keyBytes[:], key.Value.Public)
 
 	if !ed25519.Verify(&keyBytes, msg, &sigBytes) {
-		logrus.Infof("Failed verification: %s", err)
+		logrus.Infof("Failed ed25519 verification")
 		return ErrInvalid
 	}
 	log.Printf("---------------Verification succeeded!!!---------------")

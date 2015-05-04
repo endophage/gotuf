@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"log"
 
-	tuf "github.com/endophage/go-tuf/client"
+	"github.com/endophage/go-tuf/client"
+	"github.com/endophage/go-tuf/store"
 	"github.com/flynn/go-docopt"
 )
 
@@ -44,7 +45,7 @@ See "tuf-client help <command>" for more information on a specific command.
 	}
 }
 
-type cmdFunc func(*docopt.Args, *tuf.Client) error
+type cmdFunc func(*docopt.Args, *client.Client) error
 
 type command struct {
 	usage string
@@ -79,18 +80,15 @@ func runCommand(name string, args []string) error {
 	return cmd.f(parsedArgs, client)
 }
 
-func tufClient(args *docopt.Args) (*tuf.Client, error) {
-	store, ok := args.String["--store"]
+func tufClient(args *docopt.Args) (*client.Client, error) {
+	storePath, ok := args.String["--store"]
 	if !ok {
-		store = args.String["-s"]
+		storePath = args.String["-s"]
 	}
-	local, err := tuf.FileLocalStore(store)
+	local := store.FileSystemStore(storePath, nil)
+	remote, err := client.HTTPRemoteStore(args.String["<url>"], nil)
 	if err != nil {
 		return nil, err
 	}
-	remote, err := tuf.HTTPRemoteStore(args.String["<url>"], nil)
-	if err != nil {
-		return nil, err
-	}
-	return tuf.NewClient(local, remote), nil
+	return client.NewClient(local, remote), nil
 }

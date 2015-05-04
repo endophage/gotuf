@@ -8,11 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"crypto"
-	"crypto/rsa"
-	"crypto/sha256"
-	"crypto/x509"
-	//"github.com/agl/ed25519"
 	"github.com/endophage/go-tuf/data"
 	"github.com/endophage/go-tuf/keys"
 	"github.com/tent/canonical-json-go"
@@ -34,15 +29,7 @@ type signedMeta struct {
 	Version int       `json:"version"`
 }
 
-type verificationService struct {
-	verifiers map[string]Verifier
-}
-
-func NewVerificationService(verifier map[string]Verifier) verificationService {
-	return verificationService{verifiers: verifiers}
-}
-
-func (vs verificationService) Verify(s *data.Signed, role string, minVersion int, db *keys.DB) error {
+func Verify(s *data.Signed, role string, minVersion int, db *keys.DB) error {
 	if err := VerifySignatures(s, role, db); err != nil {
 		return err
 	}
@@ -68,7 +55,7 @@ var IsExpired = func(t time.Time) bool {
 	return t.Sub(time.Now()) <= 0
 }
 
-func (vs verificationService) VerifySignatures(s *data.Signed, role string, db *keys.DB) error {
+func VerifySignatures(s *data.Signed, role string, db *keys.DB) error {
 	if len(s.Signatures) == 0 {
 		return ErrNoSignatures
 	}
@@ -100,13 +87,13 @@ func (vs verificationService) VerifySignatures(s *data.Signed, role string, db *
 			continue
 		}
 
-		verifier, ok := vs.verifiers[sig.Method]
+		verifier, ok := Verifiers[sig.Method]
 		if !ok {
 			log.Printf("continuing b/c signing method is not supported: %s\n", sig.Method)
 			continue
 		}
 
-		if err := verifier.Verify(key, sig.Signature, msg); err != nil {
+		if err := verifier.Verify(&key.Key, sig.Signature, msg); err != nil {
 			log.Printf("continuing b/c signature was invalid\n")
 			continue
 		}
