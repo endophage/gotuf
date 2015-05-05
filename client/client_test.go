@@ -99,21 +99,13 @@ func (s *ClientSuite) SetUpTest(c *C) {
 	// don't use consistent snapshots to make testing easier (consistent
 	// snapshots are tested explicitly elsewhere)
 	c.Assert(s.repo.Init(false), IsNil)
-	rootKeys, _ := s.repo.GetKeyIDs("root")
-	targetKeys, _ := s.repo.GetKeyIDs("targets")
-	snapshotKeys, _ := s.repo.GetKeyIDs("snapshot")
-	timestampKeys, _ := s.repo.GetKeyIDs("timestamp")
 	s.keyIDs = map[string]string{
-		//	"root":      s.genKey(c, "root"),
-		//	"targets":   s.genKey(c, "targets"),
-		//	"snapshot":  s.genKey(c, "snapshot"),
-		//	"timestamp": s.genKey(c, "timestamp"),
-		"root":      rootKeys[0],
-		"targets":   targetKeys[0],
-		"snapshot":  snapshotKeys[0],
-		"timestamp": timestampKeys[0],
+		"root":      s.genKey(c, "root"),
+		"targets":   s.genKey(c, "targets"),
+		"snapshot":  s.genKey(c, "snapshot"),
+		"timestamp": s.genKey(c, "timestamp"),
 	}
-	c.Assert(s.repo.AddTarget("foo.txt", nil), IsNil)
+	c.Assert(s.repo.AddTargets(nil, "foo.txt"), IsNil)
 	c.Assert(s.repo.Snapshot(tuf.CompressionTypeNone), IsNil)
 	c.Assert(s.repo.Timestamp(), IsNil)
 
@@ -168,7 +160,7 @@ func (s *ClientSuite) syncRemote(c *C) {
 }
 
 func (s *ClientSuite) addRemoteTarget(c *C, name string) {
-	c.Assert(s.repo.AddTarget(name, nil), IsNil)
+	c.Assert(s.repo.AddTargets(nil, name), IsNil)
 	c.Assert(s.repo.Snapshot(tuf.CompressionTypeNone), IsNil)
 	c.Assert(s.repo.Timestamp(), IsNil)
 	s.syncRemote(c)
@@ -495,7 +487,7 @@ func (s *ClientSuite) TestLocalExpired(c *C) {
 
 	// locally expired targets.json is ok
 	version = client.targetsVer
-	c.Assert(s.repo.AddTargetWithExpires("foo.txt", nil, s.expiredTime), IsNil)
+	c.Assert(s.repo.AddTargetsWithExpires(nil, s.expiredTime, "foo.txt"), IsNil)
 	s.syncLocal(c)
 	s.withMetaExpired(func() {
 		c.Assert(client.getLocalMeta(), IsNil)
@@ -565,7 +557,7 @@ func (s *ClientSuite) TestUpdateRemoteExpired(c *C) {
 		s.assertErrExpired(c, err, "snapshot.json")
 	})
 
-	c.Assert(s.repo.AddTargetWithExpires("bar.txt", nil, s.expiredTime), IsNil)
+	c.Assert(s.repo.AddTargetsWithExpires(nil, s.expiredTime, "bar.txt"), IsNil)
 	c.Assert(s.repo.Snapshot(tuf.CompressionTypeNone), IsNil)
 	c.Assert(s.repo.Timestamp(), IsNil)
 	s.syncRemote(c)
@@ -575,7 +567,7 @@ func (s *ClientSuite) TestUpdateRemoteExpired(c *C) {
 	})
 
 	s.genKeyExpired(c, "timestamp")
-	c.Assert(s.repo.RemoveTarget("bar.txt"), IsNil)
+	c.Assert(s.repo.RemoveTargets("bar.txt"), IsNil)
 	c.Assert(s.repo.Snapshot(tuf.CompressionTypeNone), IsNil)
 	c.Assert(s.repo.Timestamp(), IsNil)
 	s.syncRemote(c)
@@ -620,7 +612,7 @@ func (s *ClientSuite) TestUpdateLocalRootExpiredKeyChange(c *C) {
 func (s *ClientSuite) TestUpdateMixAndMatchAttack(c *C) {
 	// generate metadata with an explicit expires so we can make predictable changes
 	expires := time.Now().Add(time.Hour)
-	c.Assert(s.repo.AddTargetWithExpires("foo.txt", nil, expires), IsNil)
+	c.Assert(s.repo.AddTargetsWithExpires(nil, expires, "foo.txt"), IsNil)
 	c.Assert(s.repo.Snapshot(tuf.CompressionTypeNone), IsNil)
 	c.Assert(s.repo.Timestamp(), IsNil)
 	s.syncRemote(c)
@@ -633,7 +625,7 @@ func (s *ClientSuite) TestUpdateMixAndMatchAttack(c *C) {
 	}
 
 	// generate new remote metadata, but replace targets.json with the old one
-	c.Assert(s.repo.AddTargetWithExpires("bar.txt", nil, expires), IsNil)
+	c.Assert(s.repo.AddTargetsWithExpires(nil, expires, "bar.txt"), IsNil)
 	c.Assert(s.repo.Snapshot(tuf.CompressionTypeNone), IsNil)
 	c.Assert(s.repo.Timestamp(), IsNil)
 	s.syncRemote(c)
@@ -648,7 +640,7 @@ func (s *ClientSuite) TestUpdateMixAndMatchAttack(c *C) {
 	c.Assert(err, DeepEquals, ErrWrongSize{"targets.json", oldTargets.size, newTargets.size})
 
 	// do the same but keep the size the same
-	c.Assert(s.repo.RemoveTargetWithExpires("foo.txt", expires), IsNil)
+	c.Assert(s.repo.RemoveTargetsWithExpires(expires, "foo.txt"), IsNil)
 	c.Assert(s.repo.Snapshot(tuf.CompressionTypeNone), IsNil)
 	c.Assert(s.repo.Timestamp(), IsNil)
 	s.syncRemote(c)

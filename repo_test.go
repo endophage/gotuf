@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/agl/ed25519"
-	. "gopkg.in/check.v1"
 	"github.com/endophage/go-tuf/data"
 	"github.com/endophage/go-tuf/store"
+	. "gopkg.in/check.v1"
 	//	"github.com/endophage/go-tuf/encrypted"
 	tuferr "github.com/endophage/go-tuf/errors"
 	"github.com/endophage/go-tuf/signed"
@@ -133,7 +133,7 @@ func (RepoSuite) TestInit(c *C) {
 	}
 
 	// Init() fails if targets have been added
-	c.Assert(r.AddTarget("foo.txt", nil), IsNil)
+	c.Assert(r.AddTargets(nil, "foo.txt"), IsNil)
 	c.Assert(r.Init(true), Equals, tuferr.ErrInitNotAllowed)
 }
 
@@ -398,7 +398,7 @@ func (RepoSuite) TestCommit(c *C) {
 	// commit without snapshot.json
 	genKey(c, r, "targets")
 	local.AddBlob("/foo.txt", util.SampleMeta())
-	c.Assert(r.AddTarget("foo.txt", nil), IsNil)
+	c.Assert(r.AddTargets(nil, "foo.txt"), IsNil)
 	c.Assert(r.Commit(), DeepEquals, tuferr.ErrMissingMetadata{"snapshot.json"})
 
 	// commit without timestamp.json
@@ -424,7 +424,7 @@ func (RepoSuite) TestCommit(c *C) {
 	// commit with an invalid targets hash in snapshot.json
 	c.Assert(r.Snapshot(CompressionTypeNone), IsNil)
 	local.AddBlob("/bar.txt", util.SampleMeta())
-	c.Assert(r.AddTarget("bar.txt", nil), IsNil)
+	c.Assert(r.AddTargets(nil, "bar.txt"), IsNil)
 	c.Assert(r.Commit(), DeepEquals, errors.New("tuf: invalid targets.json in snapshot.json: wrong length"))
 
 	// commit with an invalid timestamp
@@ -544,12 +544,12 @@ func (RepoSuite) TestCommitFileSystem(c *C) {
 	tmp.assertEmpty("staged/targets")
 
 	// adding a non-existent file fails
-	c.Assert(r.AddTarget("foo.txt", nil), Equals, tuferr.ErrFileNotFound{tmp.stagedTargetPath("foo.txt")})
+	c.Assert(r.AddTargets(nil, "foo.txt"), Equals, tuferr.ErrFileNotFound{tmp.stagedTargetPath("foo.txt")})
 	tmp.assertEmpty("repository")
 
 	// adding a file stages targets.json
 	tmp.writeStagedTarget("foo.txt", "foo")
-	c.Assert(r.AddTarget("foo.txt", nil), IsNil)
+	c.Assert(r.AddTargets(nil, "foo.txt"), IsNil)
 	tmp.assertExists("staged/targets.json")
 	tmp.assertEmpty("repository")
 	t, err := r.targets()
@@ -581,7 +581,7 @@ func (RepoSuite) TestCommitFileSystem(c *C) {
 
 	// adding and committing another file moves it into repository/targets
 	tmp.writeStagedTarget("path/to/bar.txt", "bar")
-	c.Assert(r.AddTarget("path/to/bar.txt", nil), IsNil)
+	c.Assert(r.AddTargets(nil, "path/to/bar.txt"), IsNil)
 	tmp.assertExists("staged/targets.json")
 	c.Assert(r.Snapshot(CompressionTypeNone), IsNil)
 	c.Assert(r.Timestamp(), IsNil)
@@ -592,7 +592,7 @@ func (RepoSuite) TestCommitFileSystem(c *C) {
 	tmp.assertEmpty("staged")
 
 	// removing and committing a file removes it from repository/targets
-	c.Assert(r.RemoveTarget("foo.txt"), IsNil)
+	c.Assert(r.RemoveTargets("foo.txt"), IsNil)
 	tmp.assertExists("staged/targets.json")
 	c.Assert(r.Snapshot(CompressionTypeNone), IsNil)
 	c.Assert(r.Timestamp(), IsNil)
@@ -615,9 +615,9 @@ func (RepoSuite) TestConsistentSnapshot(c *C) {
 	genKey(c, r, "snapshot")
 	genKey(c, r, "timestamp")
 	tmp.writeStagedTarget("foo.txt", "foo")
-	c.Assert(r.AddTarget("foo.txt", nil), IsNil)
+	c.Assert(r.AddTargets(nil, "foo.txt"), IsNil)
 	tmp.writeStagedTarget("dir/bar.txt", "bar")
-	c.Assert(r.AddTarget("dir/bar.txt", nil), IsNil)
+	c.Assert(r.AddTargets(nil, "dir/bar.txt"), IsNil)
 	c.Assert(r.Snapshot(CompressionTypeNone), IsNil)
 	c.Assert(r.Timestamp(), IsNil)
 	c.Assert(r.Commit(), IsNil)
@@ -643,7 +643,7 @@ func (RepoSuite) TestConsistentSnapshot(c *C) {
 	tmp.assertExists("repository/timestamp.json")
 
 	// removing a file should remove the hashed files
-	c.Assert(r.RemoveTarget("foo.txt"), IsNil)
+	c.Assert(r.RemoveTargets("foo.txt"), IsNil)
 	c.Assert(r.Snapshot(CompressionTypeNone), IsNil)
 	c.Assert(r.Timestamp(), IsNil)
 	c.Assert(r.Commit(), IsNil)
@@ -675,8 +675,8 @@ func (RepoSuite) TestExpiresAndVersion(c *C) {
 	_, genKeyErr := r.GenKeyWithExpires("root", past)
 	for _, err := range []error{
 		genKeyErr,
-		r.AddTargetWithExpires("foo.txt", nil, past),
-		r.RemoveTargetWithExpires("foo.txt", past),
+		r.AddTargetsWithExpires(nil, past, "foo.txt"),
+		r.RemoveTargetsWithExpires(past, "foo.txt"),
 		r.SnapshotWithExpires(CompressionTypeNone, past),
 		r.TimestampWithExpires(past),
 	} {
@@ -711,14 +711,14 @@ func (RepoSuite) TestExpiresAndVersion(c *C) {
 	expires = time.Now().Add(6 * time.Hour)
 	genKey(c, r, "targets")
 	local.AddBlob("/foo.txt", util.SampleMeta())
-	c.Assert(r.AddTargetWithExpires("foo.txt", nil, expires), IsNil)
+	c.Assert(r.AddTargetsWithExpires(nil, expires, "foo.txt"), IsNil)
 	targets, err := r.targets()
 	c.Assert(err, IsNil)
 	c.Assert(targets.Expires.Unix(), Equals, expires.Round(time.Second).Unix())
 	c.Assert(targets.Version, Equals, 1)
 
 	expires = time.Now().Add(2 * time.Hour)
-	c.Assert(r.RemoveTargetWithExpires("foo.txt", expires), IsNil)
+	c.Assert(r.RemoveTargetsWithExpires(expires, "foo.txt"), IsNil)
 	targets, err = r.targets()
 	c.Assert(err, IsNil)
 	c.Assert(targets.Expires.Unix(), Equals, expires.Round(time.Second).Unix())
@@ -774,7 +774,7 @@ func (RepoSuite) TestHashAlgorithm(c *C) {
 		genKey(c, r, "targets")
 		genKey(c, r, "snapshot")
 		local.AddBlob("/foo.txt", util.SampleMeta())
-		c.Assert(r.AddTarget("foo.txt", nil), IsNil)
+		c.Assert(r.AddTargets(nil, "foo.txt"), IsNil)
 		c.Assert(r.Snapshot(CompressionTypeNone), IsNil)
 		c.Assert(r.Timestamp(), IsNil)
 
@@ -896,7 +896,7 @@ func (RepoSuite) TestManageMultipleTargets(c *C) {
 	// adding and committing multiple files moves correct targets from staged -> repository
 	tmp.writeStagedTarget("foo.txt", "foo")
 	tmp.writeStagedTarget("bar.txt", "bar")
-	c.Assert(r.AddTargets([]string{"foo.txt", "bar.txt"}, nil), IsNil)
+	c.Assert(r.AddTargets(nil, "foo.txt", "bar.txt"), IsNil)
 	c.Assert(r.Snapshot(CompressionTypeNone), IsNil)
 	c.Assert(r.Timestamp(), IsNil)
 	c.Assert(r.Commit(), IsNil)
@@ -911,7 +911,7 @@ func (RepoSuite) TestManageMultipleTargets(c *C) {
 		files[i] = fmt.Sprintf("/file%d.txt", i)
 		tmp.writeStagedTarget(files[i], "data")
 	}
-	c.Assert(r.AddTargets(nil, nil), IsNil)
+	c.Assert(r.AddTargets(nil), IsNil)
 	c.Assert(r.Snapshot(CompressionTypeNone), IsNil)
 	c.Assert(r.Timestamp(), IsNil)
 	c.Assert(r.Commit(), IsNil)
@@ -925,7 +925,7 @@ func (RepoSuite) TestManageMultipleTargets(c *C) {
 	tmp.assertEmpty("staged")
 
 	// removing all targets removes them from the repository and targets.json
-	c.Assert(r.RemoveTargets(nil), IsNil)
+	c.Assert(r.RemoveTargets(), IsNil)
 	c.Assert(r.Snapshot(CompressionTypeNone), IsNil)
 	c.Assert(r.Timestamp(), IsNil)
 	c.Assert(r.Commit(), IsNil)

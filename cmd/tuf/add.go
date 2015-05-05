@@ -30,7 +30,7 @@ func cmdAdd(args *docopt.Args, repo *tuf.Repo) error {
 		if err != nil {
 			return err
 		}
-		return repo.AddTargetsWithExpires(paths, nil, expires)
+		return repo.AddTargetsWithExpires(nil, expires, paths...)
 	}
-	return repo.AddTargets(paths, nil)
+	return repo.AddTargets(nil, paths...)
 }

@@ -29,7 +29,7 @@ func cmdRemove(args *docopt.Args, repo *tuf.Repo) error {
 		if err != nil {
 			return err
 		}
-		return repo.RemoveTargetsWithExpires(paths, expires)
+		return repo.RemoveTargetsWithExpires(expires, paths...)
 	}
 	return repo.RemoveTargets(paths)
 }

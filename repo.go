@@ -54,7 +54,7 @@ type Repo struct {
 // If the local store is already populated, local.GetMeta() will initialise
 // the Repo with the appropriate state.
 func NewRepo(trust signed.TrustService, local store.LocalStore, hashAlgorithms ...string) (*Repo, error) {
-	r := &Repo{trust: signed.NewSigner(trust), local: local, hashAlgorithms: hashAlgorithms}
+	r := &Repo{trust: signed.NewSigner(trust), local: local, hashAlgorithms: hashAlgorithms, meta: nil}
 
 	var err error
 	r.meta, err = local.GetMeta()
@@ -76,11 +76,11 @@ func (r *Repo) Init(consistentSnapshot bool) error {
 	}
 	root := data.NewRoot()
 	root.ConsistentSnapshot = consistentSnapshot
-	err = r.setMeta("root.json", root)
-	if err != nil {
-		return err
-	}
-	_, err = r.GenKey("root")
+	return r.setMeta("root.json", root)
+}
+
+func (r *Repo) initKeys(roles ...string) error {
+	_, err := r.GenKey("root")
 	if err != nil {
 		return err
 	}
@@ -93,20 +93,6 @@ func (r *Repo) Init(consistentSnapshot bool) error {
 		return err
 	}
 	_, err = r.GenKey("timestamp")
-	if err != nil {
-		return err
-	}
-	t.Expires = data.DefaultExpires("targets").Round(time.Second)
-	t.Version++
-	err = r.setMeta("targets.json", t)
-	if err != nil {
-		return err
-	}
-	err = r.Snapshot(CompressionTypeNone)
-	if err != nil {
-		return err
-	}
-	err = r.Timestamp()
 	if err != nil {
 		return err
 	}
@@ -433,19 +419,11 @@ func validManifest(name string) bool {
 	return false
 }
 
-func (r *Repo) AddTarget(path string, custom json.RawMessage) error {
-	return r.AddTargets([]string{path}, custom)
+func (r *Repo) AddTargets(custom json.RawMessage, paths ...string) error {
+	return r.AddTargetsWithExpires(custom, data.DefaultExpires("targets"), paths...)
 }
 
-func (r *Repo) AddTargets(paths []string, custom json.RawMessage) error {
-	return r.AddTargetsWithExpires(paths, custom, data.DefaultExpires("targets"))
-}
-
-func (r *Repo) AddTargetWithExpires(path string, custom json.RawMessage, expires time.Time) error {
-	return r.AddTargetsWithExpires([]string{path}, custom, expires)
-}
-
-func (r *Repo) AddTargetsWithExpires(paths []string, custom json.RawMessage, expires time.Time) error {
+func (r *Repo) AddTargetsWithExpires(custom json.RawMessage, expires time.Time, paths ...string) error {
 	if !validExpires(expires) {
 		return errors.ErrInvalidExpires{expires}
 	}
@@ -469,20 +447,12 @@ func (r *Repo) AddTargetsWithExpires(paths []string, custom json.RawMessage, exp
 	return r.setMeta("targets.json", t)
 }
 
-func (r *Repo) RemoveTarget(path string) error {
-	return r.RemoveTargets([]string{path})
-}
-
-func (r *Repo) RemoveTargets(paths []string) error {
-	return r.RemoveTargetsWithExpires(paths, data.DefaultExpires("targets"))
-}
-
-func (r *Repo) RemoveTargetWithExpires(path string, expires time.Time) error {
-	return r.RemoveTargetsWithExpires([]string{path}, expires)
+func (r *Repo) RemoveTargets(paths ...string) error {
+	return r.RemoveTargetsWithExpires(data.DefaultExpires("targets"), paths...)
 }
 
 // If paths is empty, all targets will be removed.
-func (r *Repo) RemoveTargetsWithExpires(paths []string, expires time.Time) error {
+func (r *Repo) RemoveTargetsWithExpires(expires time.Time, paths ...string) error {
 	if !validExpires(expires) {
 		return errors.ErrInvalidExpires{expires}
 	}
