@@ -52,7 +52,7 @@ func (InteropSuite) TestGoClientPythonGenerated(c *C) {
 		c.Assert(json.NewDecoder(f).Decode(key), IsNil)
 		c.Assert(key.Type, Equals, "ed25519")
 		c.Assert(key.Value.Public, HasLen, ed25519.PublicKeySize)
-		client := NewClient(MemoryLocalStore(), remote)
+		client := NewClient(store.MemoryStore(nil, map[string][]byte{}), remote)
 		c.Assert(client.Init([]*data.Key{key}, 1), IsNil)
 
 		// check update returns the correct updated targets
@@ -83,13 +83,13 @@ func generateRepoFS(c *C, dir string, files map[string][]byte, consistentSnapsho
 	signer := signed.NewEd25519()
 	repo, err := tuf.NewRepo(signer, store.FileSystemStore(dir, nil), "sha256")
 	c.Assert(err, IsNil)
-	if !consistentSnapshot {
-		c.Assert(repo.Init(false), IsNil)
-	}
-	for _, role := range []string{"root", "snapshot", "targets", "timestamp"} {
-		_, err := repo.GenKey(role)
-		c.Assert(err, IsNil)
-	}
+	//if !consistentSnapshot {
+	c.Assert(repo.Init(consistentSnapshot), IsNil)
+	//}
+	//	for _, role := range []string{"root", "snapshot", "targets", "timestamp"} {
+	//		_, err := repo.GenKey(role)
+	//		c.Assert(err, IsNil)
+	//	}
 	for file, data := range files {
 		path := filepath.Join(dir, "staged", "targets", file)
 		c.Assert(os.MkdirAll(filepath.Dir(path), 0755), IsNil)

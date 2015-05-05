@@ -5,11 +5,11 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
-	"log"
 	"reflect"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/agl/ed25519"
+
 	"github.com/endophage/go-tuf/data"
 )
 
@@ -57,7 +57,7 @@ func (v Ed25519Verifier) Verify(key *data.Key, sig []byte, msg []byte) error {
 		logrus.Infof("Failed ed25519 verification")
 		return ErrInvalid
 	}
-	log.Printf("---------------Verification succeeded!!!---------------")
+	logrus.Info("verification succeeded.")
 	return nil
 }
 
@@ -82,6 +82,6 @@ func (v RSAVerifier) Verify(key *data.Key, sig []byte, msg []byte) error {
 		logrus.Infof("Failed verification: %s", err)
 		return ErrInvalid
 	}
-	log.Printf("---------------Verification succeeded!!!---------------")
+	logrus.Info("verification succeeded.")
 	return nil
 }

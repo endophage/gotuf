@@ -25,7 +25,7 @@ func Test(t *testing.T) { TestingT(t) }
 type ClientSuite struct {
 	store       store.LocalStore
 	repo        *tuf.Repo
-	local       LocalStore
+	local       store.LocalStore
 	remote      *fakeRemoteStore
 	expiredTime time.Time
 	keyIDs      map[string]string
@@ -99,11 +99,19 @@ func (s *ClientSuite) SetUpTest(c *C) {
 	// don't use consistent snapshots to make testing easier (consistent
 	// snapshots are tested explicitly elsewhere)
 	c.Assert(s.repo.Init(false), IsNil)
+	rootKeys, _ := s.repo.GetKeyIDs("root")
+	targetKeys, _ := s.repo.GetKeyIDs("targets")
+	snapshotKeys, _ := s.repo.GetKeyIDs("snapshot")
+	timestampKeys, _ := s.repo.GetKeyIDs("timestamp")
 	s.keyIDs = map[string]string{
-		"root":      s.genKey(c, "root"),
-		"targets":   s.genKey(c, "targets"),
-		"snapshot":  s.genKey(c, "snapshot"),
-		"timestamp": s.genKey(c, "timestamp"),
+		//	"root":      s.genKey(c, "root"),
+		//	"targets":   s.genKey(c, "targets"),
+		//	"snapshot":  s.genKey(c, "snapshot"),
+		//	"timestamp": s.genKey(c, "timestamp"),
+		"root":      rootKeys[0],
+		"targets":   targetKeys[0],
+		"snapshot":  snapshotKeys[0],
+		"timestamp": timestampKeys[0],
 	}
 	c.Assert(s.repo.AddTarget("foo.txt", nil), IsNil)
 	c.Assert(s.repo.Snapshot(tuf.CompressionTypeNone), IsNil)
@@ -174,7 +182,7 @@ func (s *ClientSuite) rootKeys(c *C) []*data.Key {
 }
 
 func (s *ClientSuite) newClient(c *C) *Client {
-	s.local = MemoryLocalStore()
+	s.local = store.MemoryStore(nil, map[string][]byte{})
 	client := NewClient(s.local, s.remote)
 	c.Assert(client.Init(s.rootKeys(c), 1), IsNil)
 	return client
@@ -230,7 +238,7 @@ func (s *ClientSuite) assertErrExpired(c *C, err error, file string) {
 }
 
 func (s *ClientSuite) TestInitRootTooLarge(c *C) {
-	client := NewClient(MemoryLocalStore(), s.remote)
+	client := NewClient(store.MemoryStore(nil, map[string][]byte{}), s.remote)
 	s.remote.meta["root.json"] = newFakeFile(make([]byte, maxMetaSize+1))
 	c.Assert(client.Init(s.rootKeys(c), 0), Equals, ErrMetaTooLarge{"root.json", maxMetaSize + 1})
 }
@@ -238,14 +246,14 @@ func (s *ClientSuite) TestInitRootTooLarge(c *C) {
 func (s *ClientSuite) TestInitRootExpired(c *C) {
 	s.genKeyExpired(c, "targets")
 	s.syncRemote(c)
-	client := NewClient(MemoryLocalStore(), s.remote)
+	client := NewClient(store.MemoryStore(nil, map[string][]byte{}), s.remote)
 	s.withMetaExpired(func() {
 		s.assertErrExpired(c, client.Init(s.rootKeys(c), 1), "root.json")
 	})
 }
 
 func (s *ClientSuite) TestInit(c *C) {
-	client := NewClient(MemoryLocalStore(), s.remote)
+	client := NewClient(store.MemoryStore(nil, map[string][]byte{}), s.remote)
 
 	// check Init() returns keys.ErrInvalidThreshold with an invalid threshold
 	c.Assert(client.Init(s.rootKeys(c), 0), Equals, keys.ErrInvalidThreshold)
@@ -726,7 +734,7 @@ func (s *ClientSuite) TestUpdateHTTP(c *C) {
 		// initialize a client
 		remote, err := HTTPRemoteStore(fmt.Sprintf("http://%s/%s/repository", addr, dir), nil)
 		c.Assert(err, IsNil)
-		client := NewClient(MemoryLocalStore(), remote)
+		client := NewClient(store.MemoryStore(nil, map[string][]byte{}), remote)
 		rootKeys, err := repo.RootKeys()
 		c.Assert(err, IsNil)
 		c.Assert(rootKeys, HasLen, 1)

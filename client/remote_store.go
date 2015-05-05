@@ -50,9 +50,6 @@ func (h *httpRemoteStore) GetTarget(name string) (io.ReadCloser, int64, error) {
 
 func (h *httpRemoteStore) get(s string) (io.ReadCloser, int64, error) {
 	u := h.url(s)
-	fmt.Println("###########")
-	fmt.Println(u)
-	fmt.Println("###########")
 	req, err := http.NewRequest("GET", u, nil)
 	if err != nil {
 		return nil, 0, err

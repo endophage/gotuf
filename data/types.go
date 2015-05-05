@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"time"
 
+	cjson "github.com/tent/canonical-json-go"
+
 	//cjson "github.com/tent/canonical-json-go"
 )
 
@@ -23,13 +25,11 @@ type Key struct {
 
 func (k *Key) ID() string {
 	// create a copy so the private key is not included
-	//data, _ := cjson.Marshal(&Key{
-	//	Type:  k.Type,
-	//	Value: KeyValue{Public: k.Value.Public},
-	//})
-	//digest := sha256.Sum256(data)
-	//TODO(mccauley): Bring rufus/go-tuf in line on canonicalization
-	digest := sha256.Sum256(k.Value.Public)
+	data, _ := cjson.Marshal(&Key{
+		Type:  k.Type,
+		Value: KeyValue{Public: k.Value.Public},
+	})
+	digest := sha256.Sum256(data)
 	return hex.EncodeToString(digest[:])
 }
 

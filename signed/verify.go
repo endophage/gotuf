@@ -3,11 +3,10 @@ package signed
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
-	"log"
 	"strings"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/endophage/go-tuf/data"
 	"github.com/endophage/go-tuf/keys"
 	"github.com/tent/canonical-json-go"
@@ -60,7 +59,6 @@ func VerifySignatures(s *data.Signed, role string, db *keys.DB) error {
 		return ErrNoSignatures
 	}
 
-	fmt.Println("Role:", role)
 	roleData := db.GetRole(role)
 	if roleData == nil {
 		return ErrUnknownRole
@@ -78,23 +76,23 @@ func VerifySignatures(s *data.Signed, role string, db *keys.DB) error {
 	valid := make(map[string]struct{})
 	for _, sig := range s.Signatures {
 		if !roleData.ValidKey(sig.KeyID) {
-			log.Printf("continuing b/c keyid was invalid: %s for roledata %s\n", sig.KeyID, roleData)
+			logrus.Infof("continuing b/c keyid was invalid: %s for roledata %s\n", sig.KeyID, roleData)
 			continue
 		}
 		key := db.GetKey(sig.KeyID)
 		if key == nil {
-			log.Printf("continuing b/c keyid lookup was nil: %s\n", sig.KeyID)
+			logrus.Infof("continuing b/c keyid lookup was nil: %s\n", sig.KeyID)
 			continue
 		}
 
 		verifier, ok := Verifiers[sig.Method]
 		if !ok {
-			log.Printf("continuing b/c signing method is not supported: %s\n", sig.Method)
+			logrus.Infof("continuing b/c signing method is not supported: %s\n", sig.Method)
 			continue
 		}
 
 		if err := verifier.Verify(&key.Key, sig.Signature, msg); err != nil {
-			log.Printf("continuing b/c signature was invalid\n")
+			logrus.Infof("continuing b/c signature was invalid\n")
 			continue
 		}
 		valid[sig.KeyID] = struct{}{}
