@@ -13,8 +13,6 @@ type Ed25519 struct {
 	keys map[string]*keys.PrivateKey
 }
 
-var _ TrustService = &Ed25519{}
-
 func NewEd25519() *Ed25519 {
 	return &Ed25519{
 		make(map[string]*keys.PrivateKey),

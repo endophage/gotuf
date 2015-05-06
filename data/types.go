@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	cjson "github.com/tent/canonical-json-go"
 
 	//cjson "github.com/tent/canonical-json-go"
@@ -44,17 +45,28 @@ type Signature struct {
 	Signature HexBytes `json:"sig"`
 }
 
+var defaultExpiryTimes = map[string]time.Time{
+	"root":      time.Now().AddDate(1, 0, 0),
+	"targets":   time.Now().AddDate(0, 3, 0),
+	"snapshot":  time.Now().AddDate(0, 0, 7),
+	"timestamp": time.Now().AddDate(0, 0, 1),
+}
+
+// SetDefaultExpiryTimes allows one to change the default expiries.
+func SetDefaultExpiryTimes(times map[string]time.Time) {
+	for key, value := range times {
+		if _, ok := defaultExpiryTimes[key]; !ok {
+			logrus.Errorf("Attempted to set default expiry for an unknown role: %s", key)
+			continue
+		}
+		defaultExpiryTimes[key] = value
+	}
+}
+
 func DefaultExpires(role string) time.Time {
 	var t time.Time
-	switch role {
-	case "root":
-		t = time.Now().AddDate(1, 0, 0)
-	case "targets":
-		t = time.Now().AddDate(0, 3, 0)
-	case "snapshot":
-		t = time.Now().AddDate(0, 0, 7)
-	case "timestamp":
-		t = time.Now().AddDate(0, 0, 1)
+	if t, ok := defaultExpiryTimes[role]; ok {
+		return t
 	}
 	return t.UTC().Round(time.Second)
 }

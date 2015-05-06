@@ -14,7 +14,7 @@ type KeyService interface {
 	PublicKeys(keyIDs ...string) (map[string]*keys.PublicKey, error)
 }
 
-type TrustService interface {
+type CryptoService interface {
 	SigningService
 	KeyService
 }

@@ -8,10 +8,10 @@ import (
 // Signer encapsulates a signing service with some convenience methods to
 // interface between TUF keys and the generic service interface
 type Signer struct {
-	service TrustService
+	service CryptoService
 }
 
-func NewSigner(service TrustService) *Signer {
+func NewSigner(service CryptoService) *Signer {
 	return &Signer{service}
 }
 

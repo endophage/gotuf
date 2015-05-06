@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	//"io"
 	"path"
 	"strings"
 	"time"
@@ -53,7 +52,7 @@ type Repo struct {
 // NewRepo is a factory function for instantiating new TUF repos objects.
 // If the local store is already populated, local.GetMeta() will initialise
 // the Repo with the appropriate state.
-func NewRepo(trust signed.TrustService, local store.LocalStore, hashAlgorithms ...string) (*Repo, error) {
+func NewRepo(trust signed.CryptoService, local store.LocalStore, hashAlgorithms ...string) (*Repo, error) {
 	r := &Repo{trust: signed.NewSigner(trust), local: local, hashAlgorithms: hashAlgorithms, meta: nil}
 
 	var err error
@@ -77,26 +76,6 @@ func (r *Repo) Init(consistentSnapshot bool) error {
 	root := data.NewRoot()
 	root.ConsistentSnapshot = consistentSnapshot
 	return r.setMeta("root.json", root)
-}
-
-func (r *Repo) initKeys(roles ...string) error {
-	_, err := r.GenKey("root")
-	if err != nil {
-		return err
-	}
-	_, err = r.GenKey("targets")
-	if err != nil {
-		return err
-	}
-	_, err = r.GenKey("snapshot")
-	if err != nil {
-		return err
-	}
-	_, err = r.GenKey("timestamp")
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (r *Repo) db() (*keys.DB, error) {
@@ -437,6 +416,11 @@ func (r *Repo) AddTargetsWithExpires(custom json.RawMessage, expires time.Time, 
 		normalizedPaths[i] = util.NormalizeTarget(path)
 	}
 	if err := r.local.WalkStagedTargets(normalizedPaths, func(path string, meta data.FileMeta) (err error) {
+		if len(custom) > 0 {
+			meta.Custom = &custom
+		}
+		// it shouldn't be necessary to normalize here. WalkStagedTargets shouldn't be
+		// modifying the paths.
 		t.Targets[util.NormalizeTarget(path)] = meta
 		return nil
 	}); err != nil {
@@ -447,11 +431,14 @@ func (r *Repo) AddTargetsWithExpires(custom json.RawMessage, expires time.Time, 
 	return r.setMeta("targets.json", t)
 }
 
+// RemoveTargets calls through to RemoveTargetsWithExpires, setting the default
+// expiry time for the targets file.
 func (r *Repo) RemoveTargets(paths ...string) error {
 	return r.RemoveTargetsWithExpires(data.DefaultExpires("targets"), paths...)
 }
 
-// If paths is empty, all targets will be removed.
+// RemoveTargetsWithExpires removes targets from the current set of targets.
+// If no paths are provided, all targets will be removed.
 func (r *Repo) RemoveTargetsWithExpires(expires time.Time, paths ...string) error {
 	if !validExpires(expires) {
 		return errors.ErrInvalidExpires{expires}
@@ -482,10 +469,13 @@ func (r *Repo) RemoveTargetsWithExpires(expires time.Time, paths ...string) erro
 	return r.setMeta("targets.json", t)
 }
 
+// Snapshot calls through to SnapshotWithExpires, setting the default
+// expiry time for the snapshot file
 func (r *Repo) Snapshot(t CompressionType) error {
 	return r.SnapshotWithExpires(t, data.DefaultExpires("snapshot"))
 }
 
+// SnapshotWithExpires creates a TUF snapshot with the given expiry time.
 func (r *Repo) SnapshotWithExpires(t CompressionType, expires time.Time) error {
 	if !validExpires(expires) {
 		return errors.ErrInvalidExpires{expires}
@@ -515,10 +505,14 @@ func (r *Repo) SnapshotWithExpires(t CompressionType, expires time.Time) error {
 	return r.setMeta("snapshot.json", snapshot)
 }
 
+// Timestamp calls through the TimestampWithExpires, setting the default
+// expiry for the timestamp file
 func (r *Repo) Timestamp() error {
 	return r.TimestampWithExpires(data.DefaultExpires("timestamp"))
 }
 
+// TimestampWithExpires creates a timestamp file with the given
+// expiry time
 func (r *Repo) TimestampWithExpires(expires time.Time) error {
 	if !validExpires(expires) {
 		return errors.ErrInvalidExpires{expires}

@@ -7,11 +7,11 @@ import (
 	"github.com/endophage/go-tuf/keys"
 )
 
-type MockTrustService struct {
+type MockCryptoService struct {
 	testKey keys.PublicKey
 }
 
-func (mts *MockTrustService) Sign(keyIDs []string, _ []byte) ([]data.Signature, error) {
+func (mts *MockCryptoService) Sign(keyIDs []string, _ []byte) ([]data.Signature, error) {
 	sigs := make([]data.Signature, 0, len(keyIDs))
 	for _, keyID := range keyIDs {
 		sigs = append(sigs, data.Signature{KeyID: keyID})
@@ -19,20 +19,20 @@ func (mts *MockTrustService) Sign(keyIDs []string, _ []byte) ([]data.Signature, 
 	return sigs, nil
 }
 
-func (mts *MockTrustService) Create() (*keys.PublicKey, error) {
+func (mts *MockCryptoService) Create() (*keys.PublicKey, error) {
 	return &mts.testKey, nil
 }
 
-func (mts *MockTrustService) PublicKeys(keyIDs ...string) (map[string]*keys.PublicKey, error) {
+func (mts *MockCryptoService) PublicKeys(keyIDs ...string) (map[string]*keys.PublicKey, error) {
 	keys := map[string]*keys.PublicKey{"testID": &mts.testKey}
 	return keys, nil
 }
 
-var _ TrustService = &MockTrustService{}
+var _ CryptoService = &MockCryptoService{}
 
 // Test signing and ensure the expected signature is added
 func TestBasicSign(t *testing.T) {
-	signer := Signer{&MockTrustService{
+	signer := Signer{&MockCryptoService{
 		testKey: keys.PublicKey{ID: "testID"},
 	}}
 	key, err := signer.Create()
@@ -54,10 +54,10 @@ func TestBasicSign(t *testing.T) {
 }
 
 // Test signing with the same key multiple times only registers a single signature
-// for the key (N.B. MockTrustService.Sign will still be called again, but Signer.Sign
+// for the key (N.B. MockCryptoService.Sign will still be called again, but Signer.Sign
 // should be cleaning previous signatures by the KeyID when asked to sign again)
 func TestReSign(t *testing.T) {
-	signer := Signer{&MockTrustService{
+	signer := Signer{&MockCryptoService{
 		testKey: keys.PublicKey{},
 	}}
 	key := keys.PublicKey{ID: "testID"}
@@ -77,7 +77,7 @@ func TestReSign(t *testing.T) {
 }
 
 func TestMultiSign(t *testing.T) {
-	signer := Signer{&MockTrustService{}}
+	signer := Signer{&MockCryptoService{}}
 	key := keys.PublicKey{ID: "testID1"}
 	testData := data.Signed{}
 
@@ -100,7 +100,7 @@ func TestMultiSign(t *testing.T) {
 }
 
 func TestCreate(t *testing.T) {
-	signer := Signer{&MockTrustService{
+	signer := Signer{&MockCryptoService{
 		testKey: keys.PublicKey{ID: "testID"},
 	}}
 
