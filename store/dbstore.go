@@ -6,11 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"path"
 	"strings"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/endophage/go-tuf/data"
 	"github.com/endophage/go-tuf/util"
 )
@@ -130,7 +130,7 @@ func (dbs *dbStore) SaveKey(role string, key *data.Key) error {
 	}
 	tx, err := dbs.db.Begin()
 	if err != nil {
-		fmt.Println(err)
+		logrus.Error(err)
 		return err
 	}
 	_, err = tx.Exec("INSERT INTO `keys` (`namespace`, `role`, `key`) VALUES (?,?,?);", dbs.imageName, role, string(jsonBytes))
@@ -154,12 +154,12 @@ func (dbs *dbStore) AddBlob(path string, meta data.FileMeta) {
 
 	tx, err := dbs.db.Begin()
 	if err != nil {
-		fmt.Println(err)
+		logrus.Error(err)
 		return
 	}
 	_, err = tx.Exec("INSERT OR REPLACE INTO `filemeta` VALUES (?,?,?,?);", dbs.imageName, path, meta.Length, jsonbytes)
 	if err != nil {
-		fmt.Println(err)
+		logrus.Error(err)
 	}
 	tx.Commit()
 	dbs.addBlobHashes(path, meta.Hashes)
@@ -168,12 +168,12 @@ func (dbs *dbStore) AddBlob(path string, meta data.FileMeta) {
 func (dbs *dbStore) addBlobHashes(path string, hashes data.Hashes) {
 	tx, err := dbs.db.Begin()
 	if err != nil {
-		fmt.Println(err)
+		logrus.Error(err)
 	}
 	for alg, hash := range hashes {
 		_, err := tx.Exec("INSERT OR REPLACE INTO `filehashes` VALUES (?,?,?,?);", dbs.imageName, path, alg, hex.EncodeToString(hash))
 		if err != nil {
-			fmt.Println(err)
+			logrus.Error(err)
 		}
 	}
 	tx.Commit()
@@ -183,7 +183,7 @@ func (dbs *dbStore) addBlobHashes(path string, hashes data.Hashes) {
 func (dbs *dbStore) RemoveBlob(path string) error {
 	tx, err := dbs.db.Begin()
 	if err != nil {
-		fmt.Println(err)
+		logrus.Error(err)
 		return err
 	}
 	_, err = tx.Exec("DELETE FROM `filemeta` WHERE `path`=? AND `namespace`=?", path, dbs.imageName)
@@ -221,7 +221,7 @@ func (dbs *dbStore) loadTargets(path string) map[string]data.FileMeta {
 		if err != nil {
 			// We're going to skip items with unparseable hashes as they
 			// won't be valid in the targets.json
-			fmt.Println("Hash was not stored in hex as expected")
+			logrus.Debug("Hash was not stored in hex as expected")
 			continue
 		}
 		if file, ok := files[absPath]; ok {
@@ -247,13 +247,13 @@ func (dbs *dbStore) writeFile(name string, content []byte) error {
 	dirPath := path.Dir(fullPath)
 	err := os.MkdirAll(dirPath, 0744)
 	if err != nil {
-		log.Printf("error creating directory path to TUF cache")
+		logrus.Error("error creating directory path to TUF cache")
 		return err
 	}
 
 	err = ioutil.WriteFile(fullPath, content, 0744)
 	if err != nil {
-		log.Printf("Error writing file")
+		logrus.Error("Error writing file")
 	}
 	return err
 }

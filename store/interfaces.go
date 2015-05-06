@@ -10,12 +10,12 @@ type targetsWalkFunc func(path string, meta data.FileMeta) error
 
 type MetadataStore interface {
 	GetMeta() (map[string]json.RawMessage, error)
-	SetMeta(string, json.RawMessage) error
+	SetMeta(name string, blob json.RawMessage) error
 }
 
 type KeyStore interface {
-	GetKeys(string) ([]*data.Key, error)
-	SaveKey(string, *data.Key) error
+	GetKeys(role string) ([]*data.Key, error)
+	SaveKey(role string, key *data.Key) error
 }
 
 type TargetStore interface {
@@ -27,5 +27,5 @@ type LocalStore interface {
 	KeyStore
 	TargetStore
 	Clean() error
-	Commit(map[string]json.RawMessage, bool, map[string]data.Hashes) error
+	Commit(meta map[string]json.RawMessage, consistentSnapshot bool, hashes map[string]data.Hashes) error
 }
