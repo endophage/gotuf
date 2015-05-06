@@ -17,6 +17,7 @@ import (
 	//	"github.com/endophage/go-tuf/encrypted"
 	tuferr "github.com/endophage/go-tuf/errors"
 	"github.com/endophage/go-tuf/signed"
+	"github.com/endophage/go-tuf/testutil"
 	"github.com/endophage/go-tuf/util"
 )
 
@@ -69,8 +70,8 @@ func (RepoSuite) TestNewRepo(c *C) {
 		  "signatures": []
 		}`),
 	}
-	db := util.GetSqliteDB()
-	defer util.FlushDB(db)
+	db := testutil.GetSqliteDB()
+	defer testutil.FlushDB(db)
 	local := store.DBStore(db, "")
 
 	for k, v := range meta {
@@ -112,14 +113,14 @@ func (RepoSuite) TestNewRepo(c *C) {
 func (RepoSuite) TestInit(c *C) {
 	trust := signed.NewEd25519()
 
-	db := util.GetSqliteDB()
-	defer util.FlushDB(db)
+	db := testutil.GetSqliteDB()
+	defer testutil.FlushDB(db)
 	local := store.DBStore(
 		db,
 		"",
 		//map[string][]byte{"/foo.txt": []byte("foo")},
 	)
-	local.AddBlob("/foo.txt", util.SampleMeta())
+	local.AddBlob("/foo.txt", testutil.SampleMeta())
 
 	r, err := NewRepo(trust, local, "sha256")
 	c.Assert(err, IsNil)
@@ -146,8 +147,8 @@ func genKey(c *C, r *Repo, role string) string {
 func (RepoSuite) TestGenKey(c *C) {
 	trust := signed.NewEd25519()
 
-	sqldb := util.GetSqliteDB()
-	defer util.FlushDB(sqldb)
+	sqldb := testutil.GetSqliteDB()
+	defer testutil.FlushDB(sqldb)
 	local := store.DBStore(sqldb, "")
 	r, err := NewRepo(trust, local, "sha256")
 	c.Assert(err, IsNil)
@@ -277,8 +278,8 @@ func (RepoSuite) TestGenKey(c *C) {
 func (RepoSuite) TestRevokeKey(c *C) {
 	trust := signed.NewEd25519()
 
-	db := util.GetSqliteDB()
-	defer util.FlushDB(db)
+	db := testutil.GetSqliteDB()
+	defer testutil.FlushDB(db)
 	local := store.DBStore(db, "")
 	r, err := NewRepo(trust, local, "sha256")
 	c.Assert(err, IsNil)
@@ -330,8 +331,8 @@ func (RepoSuite) TestSign(c *C) {
 	trust := signed.NewEd25519()
 
 	baseMeta := map[string]json.RawMessage{"root.json": []byte(`{"signed":{},"signatures":[]}`)}
-	db := util.GetSqliteDB()
-	defer util.FlushDB(db)
+	db := testutil.GetSqliteDB()
+	defer testutil.FlushDB(db)
 	local := store.DBStore(db, "")
 	local.SetMeta("root.json", baseMeta["root.json"])
 	r, err := NewRepo(trust, local, "sha256")
@@ -382,8 +383,8 @@ func (RepoSuite) TestCommit(c *C) {
 	trust := signed.NewEd25519()
 
 	//files := map[string][]byte{"/foo.txt": []byte("foo"), "/bar.txt": []byte("bar")}
-	db := util.GetSqliteDB()
-	defer util.FlushDB(db)
+	db := testutil.GetSqliteDB()
+	defer testutil.FlushDB(db)
 	local := store.DBStore(db, "")
 	r, err := NewRepo(trust, local, "sha256")
 	c.Assert(err, IsNil)
@@ -397,7 +398,7 @@ func (RepoSuite) TestCommit(c *C) {
 
 	// commit without snapshot.json
 	genKey(c, r, "targets")
-	local.AddBlob("/foo.txt", util.SampleMeta())
+	local.AddBlob("/foo.txt", testutil.SampleMeta())
 	c.Assert(r.AddTargets(nil, "foo.txt"), IsNil)
 	c.Assert(r.Commit(), DeepEquals, tuferr.ErrMissingMetadata{"snapshot.json"})
 
@@ -423,7 +424,7 @@ func (RepoSuite) TestCommit(c *C) {
 
 	// commit with an invalid targets hash in snapshot.json
 	c.Assert(r.Snapshot(CompressionTypeNone), IsNil)
-	local.AddBlob("/bar.txt", util.SampleMeta())
+	local.AddBlob("/bar.txt", testutil.SampleMeta())
 	c.Assert(r.AddTargets(nil, "bar.txt"), IsNil)
 	c.Assert(r.Commit(), DeepEquals, errors.New("tuf: invalid targets.json in snapshot.json: wrong length"))
 
@@ -665,8 +666,8 @@ func (RepoSuite) TestExpiresAndVersion(c *C) {
 	trust := signed.NewEd25519()
 
 	//files := map[string][]byte{"/foo.txt": []byte("foo")}
-	db := util.GetSqliteDB()
-	defer util.FlushDB(db)
+	db := testutil.GetSqliteDB()
+	defer testutil.FlushDB(db)
 	local := store.DBStore(db, "")
 	r, err := NewRepo(trust, local, "sha256")
 	c.Assert(err, IsNil)
@@ -710,7 +711,7 @@ func (RepoSuite) TestExpiresAndVersion(c *C) {
 
 	expires = time.Now().Add(6 * time.Hour)
 	genKey(c, r, "targets")
-	local.AddBlob("/foo.txt", util.SampleMeta())
+	local.AddBlob("/foo.txt", testutil.SampleMeta())
 	c.Assert(r.AddTargetsWithExpires(nil, expires, "foo.txt"), IsNil)
 	targets, err := r.targets()
 	c.Assert(err, IsNil)
@@ -755,8 +756,8 @@ func (RepoSuite) TestHashAlgorithm(c *C) {
 	trust := signed.NewEd25519()
 
 	//files := map[string][]byte{"/foo.txt": []byte("foo")}
-	db := util.GetSqliteDB()
-	defer util.FlushDB(db)
+	db := testutil.GetSqliteDB()
+	defer testutil.FlushDB(db)
 	local := store.DBStore(db, "docker.io/testImage")
 	type hashTest struct {
 		args     []string
@@ -773,7 +774,7 @@ func (RepoSuite) TestHashAlgorithm(c *C) {
 		genKey(c, r, "root")
 		genKey(c, r, "targets")
 		genKey(c, r, "snapshot")
-		local.AddBlob("/foo.txt", util.SampleMeta())
+		local.AddBlob("/foo.txt", testutil.SampleMeta())
 		c.Assert(r.AddTargets(nil, "foo.txt"), IsNil)
 		c.Assert(r.Snapshot(CompressionTypeNone), IsNil)
 		c.Assert(r.Timestamp(), IsNil)
