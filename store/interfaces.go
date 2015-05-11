@@ -9,7 +9,7 @@ import (
 type targetsWalkFunc func(path string, meta data.FileMeta) error
 
 type MetadataStore interface {
-	GetMeta() (map[string]json.RawMessage, error)
+	GetMeta(name string) (json.RawMessage, error)
 	SetMeta(name string, blob json.RawMessage) error
 }
 

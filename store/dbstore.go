@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
-	"strings"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/endophage/go-tuf/data"
@@ -16,7 +15,8 @@ import (
 )
 
 const (
-	tufLoc string = "/tmp/tuf"
+	tufLoc         string = "/tmp/tuf"
+	metadataSubDir string = "metadata"
 )
 
 // implements LocalStore
@@ -36,27 +36,12 @@ func DBStore(db *sql.DB, imageName string) *dbStore {
 }
 
 // GetMeta loads existing TUF metadata files
-func (dbs *dbStore) GetMeta() (map[string]json.RawMessage, error) {
-	metadataDir := path.Join(tufLoc, dbs.imageName)
-	var err error
-	meta := make(map[string]json.RawMessage)
-	files, err := ioutil.ReadDir(metadataDir)
+func (dbs *dbStore) GetMeta(name string) (json.RawMessage, error) {
+	data, err := dbs.readFile(name)
 	if err != nil {
-		if _, ok := err.(*os.PathError); ok {
-			return meta, nil
-		}
 		return nil, err
 	}
-	for _, file := range files {
-		if strings.HasSuffix(file.Name(), ".json") {
-			data, err := dbs.readFile(file.Name())
-			if err != nil {
-				continue
-			}
-			meta[file.Name()] = json.RawMessage(data)
-		}
-	}
-	return meta, err
+	return data, err
 }
 
 // SetMeta writes individual TUF metadata files
@@ -220,7 +205,7 @@ func (dbs *dbStore) loadTargets(path string) map[string]data.FileMeta {
 		hashBytes, err := hex.DecodeString(hash)
 		if err != nil {
 			// We're going to skip items with unparseable hashes as they
-			// won't be valid in the targets.json
+			// won't be valid in the targets
 			logrus.Debug("Hash was not stored in hex as expected")
 			continue
 		}
@@ -243,7 +228,8 @@ func (dbs *dbStore) loadTargets(path string) map[string]data.FileMeta {
 }
 
 func (dbs *dbStore) writeFile(name string, content []byte) error {
-	fullPath := path.Join(tufLoc, dbs.imageName, name)
+	jsonName := fmt.Sprintf("%s.json", name)
+	fullPath := path.Join(tufLoc, metadataSubDir, dbs.imageName, jsonName)
 	dirPath := path.Dir(fullPath)
 	err := os.MkdirAll(dirPath, 0744)
 	if err != nil {
@@ -259,7 +245,8 @@ func (dbs *dbStore) writeFile(name string, content []byte) error {
 }
 
 func (dbs *dbStore) readFile(name string) ([]byte, error) {
-	fullPath := path.Join(tufLoc, dbs.imageName, name)
+	jsonName := fmt.Sprintf("%s.json", name)
+	fullPath := path.Join(tufLoc, metadataSubDir, dbs.imageName, jsonName)
 	content, err := ioutil.ReadFile(fullPath)
 	return content, err
 }

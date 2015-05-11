@@ -27,18 +27,18 @@ const (
 
 // topLevelManifests determines the order signatures are verified when committing.
 var topLevelManifests = []string{
-	"root.json",
-	"targets.json",
-	"snapshot.json",
-	"timestamp.json",
+	"root",
+	"targets",
+	"snapshot",
+	"timestamp",
 }
 
 // snapshotManifests is the list of default filenames that should be included in the
-// snapshots.json. If using delegated targets, additional, dynamic files should also
+// snapshots. If using delegated targets, additional, dynamic files should also
 // be included in snapshots.
 var snapshotManifests = []string{
-	"root.json",
-	"targets.json",
+	"root",
+	"targets",
 }
 
 // Repo represents an instance of a TUF repo
@@ -55,11 +55,11 @@ type Repo struct {
 func NewRepo(trust signed.CryptoService, local store.LocalStore, hashAlgorithms ...string) (*Repo, error) {
 	r := &Repo{trust: signed.NewSigner(trust), local: local, hashAlgorithms: hashAlgorithms, meta: nil}
 
-	var err error
-	r.meta, err = local.GetMeta()
-	if err != nil {
-		return nil, err
-	}
+	//r.meta, err = local.GetMeta()
+	//if err != nil {
+	//	return nil, err
+	//}
+	r.meta = make(map[string]json.RawMessage)
 	return r, nil
 }
 
@@ -75,7 +75,7 @@ func (r *Repo) Init(consistentSnapshot bool) error {
 	}
 	root := data.NewRoot()
 	root.ConsistentSnapshot = consistentSnapshot
-	return r.setMeta("root.json", root)
+	return r.setMeta("root", root)
 }
 
 func (r *Repo) db() (*keys.DB, error) {
@@ -98,9 +98,14 @@ func (r *Repo) db() (*keys.DB, error) {
 }
 
 func (r *Repo) root() (*data.Root, error) {
-	rootJSON, ok := r.meta["root.json"]
+	var err error
+	rootJSON, ok := r.meta["root"]
 	if !ok {
-		return data.NewRoot(), nil
+		rootJSON, err = r.local.GetMeta("root")
+		if rootJSON == nil || err != nil {
+			return data.NewRoot(), nil
+		}
+		r.meta["root"] = rootJSON
 	}
 	s := &data.Signed{}
 	if err := json.Unmarshal(rootJSON, s); err != nil {
@@ -114,9 +119,14 @@ func (r *Repo) root() (*data.Root, error) {
 }
 
 func (r *Repo) snapshot() (*data.Snapshot, error) {
-	snapshotJSON, ok := r.meta["snapshot.json"]
+	var err error
+	snapshotJSON, ok := r.meta["snapshot"]
 	if !ok {
-		return data.NewSnapshot(), nil
+		snapshotJSON, err = r.local.GetMeta("snapshot")
+		if snapshotJSON == nil || err != nil {
+			return data.NewSnapshot(), nil
+		}
+		r.meta["snapshot"] = snapshotJSON
 	}
 	s := &data.Signed{}
 	if err := json.Unmarshal(snapshotJSON, s); err != nil {
@@ -130,9 +140,14 @@ func (r *Repo) snapshot() (*data.Snapshot, error) {
 }
 
 func (r *Repo) targets() (*data.Targets, error) {
-	targetsJSON, ok := r.meta["targets.json"]
+	var err error
+	targetsJSON, ok := r.meta["targets"]
 	if !ok {
-		return data.NewTargets(), nil
+		targetsJSON, err = r.local.GetMeta("targets")
+		if targetsJSON == nil || err != nil {
+			return data.NewTargets(), nil
+		}
+		r.meta["targets"] = targetsJSON
 	}
 	s := &data.Signed{}
 	if err := json.Unmarshal(targetsJSON, s); err != nil {
@@ -146,9 +161,14 @@ func (r *Repo) targets() (*data.Targets, error) {
 }
 
 func (r *Repo) timestamp() (*data.Timestamp, error) {
-	timestampJSON, ok := r.meta["timestamp.json"]
+	var err error
+	timestampJSON, ok := r.meta["timestamp"]
 	if !ok {
-		return data.NewTimestamp(), nil
+		timestampJSON, err = r.local.GetMeta("timestamp")
+		if timestampJSON == nil || err != nil {
+			return data.NewTimestamp(), nil
+		}
+		r.meta["timestamp"] = timestampJSON
 	}
 	s := &data.Signed{}
 	if err := json.Unmarshal(timestampJSON, s); err != nil {
@@ -198,7 +218,7 @@ func (r *Repo) GenKeyWithExpires(keyRole string, expires time.Time) (string, err
 	root.Expires = expires.Round(time.Second)
 	root.Version++
 
-	return key.ID, r.setMeta("root.json", root)
+	return key.ID, r.setMeta("root", root)
 }
 
 func validExpires(expires time.Time) bool {
@@ -269,11 +289,11 @@ func (r *Repo) RevokeKeyWithExpires(keyRole, id string, expires time.Time) error
 	root.Expires = expires.Round(time.Second)
 	root.Version++
 
-	return r.setMeta("root.json", root)
+	return r.setMeta("root", root)
 }
 
 func (r *Repo) setMeta(name string, meta interface{}) error {
-	keys, err := r.getKeys(strings.TrimSuffix(name, ".json"))
+	keys, err := r.getKeys(strings.TrimSuffix(name, ""))
 	if err != nil {
 		return err
 	}
@@ -295,7 +315,7 @@ func (r *Repo) setMeta(name string, meta interface{}) error {
 }
 
 func (r *Repo) Sign(name string) error {
-	role := strings.TrimSuffix(name, ".json")
+	role := strings.TrimSuffix(name, "")
 	if !keys.ValidRole(role) {
 		return errors.ErrInvalidRole{role}
 	}
@@ -344,7 +364,7 @@ func (r *Repo) GetKeyIDs(name string) ([]string, error) {
 // Only keys contained in the keys db are returned (i.e. local keys which have
 // been revoked are omitted), except for the root role in which case all local
 // keys are returned (revoked root keys still need to sign new root metadata so
-// clients can verify the new root.json and update their keys db accordingly).
+// clients can verify the new root and update their keys db accordingly).
 func (r *Repo) getKeys(name string) ([]*keys.PublicKey, error) {
 	localKeys, err := r.local.GetKeys(name)
 	if err != nil {
@@ -378,8 +398,8 @@ func (r *Repo) getKeys(name string) ([]*keys.PublicKey, error) {
 }
 
 func (r *Repo) signedMeta(name string) (*data.Signed, error) {
-	b, ok := r.meta[name]
-	if !ok {
+	b, err := r.local.GetMeta(name)
+	if err != nil {
 		return nil, errors.ErrMissingMetadata{name}
 	}
 	s := &data.Signed{}
@@ -428,7 +448,7 @@ func (r *Repo) AddTargetsWithExpires(custom json.RawMessage, expires time.Time, 
 	}
 	t.Expires = expires.Round(time.Second)
 	t.Version++
-	return r.setMeta("targets.json", t)
+	return r.setMeta("targets", t)
 }
 
 // RemoveTargets calls through to RemoveTargetsWithExpires, setting the default
@@ -466,7 +486,7 @@ func (r *Repo) RemoveTargetsWithExpires(expires time.Time, paths ...string) erro
 	}
 	t.Expires = expires.Round(time.Second)
 	t.Version++
-	return r.setMeta("targets.json", t)
+	return r.setMeta("targets", t)
 }
 
 // Snapshot calls through to SnapshotWithExpires, setting the default
@@ -502,7 +522,7 @@ func (r *Repo) SnapshotWithExpires(t CompressionType, expires time.Time) error {
 	}
 	snapshot.Expires = expires.Round(time.Second)
 	snapshot.Version++
-	return r.setMeta("snapshot.json", snapshot)
+	return r.setMeta("snapshot", snapshot)
 }
 
 // Timestamp calls through the TimestampWithExpires, setting the default
@@ -522,20 +542,20 @@ func (r *Repo) TimestampWithExpires(expires time.Time) error {
 	if err != nil {
 		return err
 	}
-	if err := r.verifySignature("snapshot.json", db); err != nil {
+	if err := r.verifySignature("snapshot", db); err != nil {
 		return err
 	}
 	timestamp, err := r.timestamp()
 	if err != nil {
 		return err
 	}
-	timestamp.Meta["snapshot.json"], err = r.fileMeta("snapshot.json")
+	timestamp.Meta["snapshot"], err = r.fileMeta("snapshot")
 	if err != nil {
 		return err
 	}
 	timestamp.Expires = expires.Round(time.Second)
 	timestamp.Version++
-	return r.setMeta("timestamp.json", timestamp)
+	return r.setMeta("timestamp", timestamp)
 }
 
 func (r *Repo) fileHashes() (map[string]data.Hashes, error) {
@@ -553,9 +573,9 @@ func (r *Repo) fileHashes() (map[string]data.Hashes, error) {
 	if err != nil {
 		return nil, err
 	}
-	addHashes("root.json", snapshot.Meta)
-	addHashes("targets.json", snapshot.Meta)
-	addHashes("snapshot.json", timestamp.Meta)
+	addHashes("root", snapshot.Meta)
+	addHashes("targets", snapshot.Meta)
+	addHashes("snapshot", timestamp.Meta)
 	t, err := r.targets()
 	if err != nil {
 		return nil, err
@@ -585,7 +605,7 @@ func (r *Repo) Commit() error {
 		}
 	}
 
-	// verify hashes in snapshot.json are up to date
+	// verify hashes in snapshot are up to date
 	snapshot, err := r.snapshot()
 	if err != nil {
 		return err
@@ -593,28 +613,28 @@ func (r *Repo) Commit() error {
 	for _, name := range snapshotManifests {
 		expected, ok := snapshot.Meta[name]
 		if !ok {
-			return fmt.Errorf("tuf: snapshot.json missing hash for %s", name)
+			return fmt.Errorf("tuf: snapshot missing hash for %s", name)
 		}
 		actual, err := r.fileMeta(name)
 		if err != nil {
 			return err
 		}
 		if err := util.FileMetaEqual(actual, expected); err != nil {
-			return fmt.Errorf("tuf: invalid %s in snapshot.json: %s", name, err)
+			return fmt.Errorf("tuf: invalid %s in snapshot: %s", name, err)
 		}
 	}
 
-	// verify hashes in timestamp.json are up to date
+	// verify hashes in timestamp are up to date
 	timestamp, err := r.timestamp()
 	if err != nil {
 		return err
 	}
-	snapshotMeta, err := r.fileMeta("snapshot.json")
+	snapshotMeta, err := r.fileMeta("snapshot")
 	if err != nil {
 		return err
 	}
-	if err := util.FileMetaEqual(snapshotMeta, timestamp.Meta["snapshot.json"]); err != nil {
-		return fmt.Errorf("tuf: invalid snapshot.json in timestamp.json: %s", err)
+	if err := util.FileMetaEqual(snapshotMeta, timestamp.Meta["snapshot"]); err != nil {
+		return fmt.Errorf("tuf: invalid snapshot in timestamp: %s", err)
 	}
 
 	// verify all signatures are correct
@@ -644,7 +664,7 @@ func (r *Repo) verifySignature(name string, db *keys.DB) error {
 	if err != nil {
 		return err
 	}
-	role := strings.TrimSuffix(name, ".json")
+	role := strings.TrimSuffix(name, "")
 	if err := signed.Verify(s, role, 0, db); err != nil {
 		return errors.ErrInsufficientSignatures{name, err}
 	}

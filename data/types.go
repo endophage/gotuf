@@ -83,7 +83,7 @@ type Root struct {
 
 func NewRoot() *Root {
 	return &Root{
-		Type:               "Root",
+		Type:               "root",
 		Expires:            DefaultExpires("root"),
 		Keys:               make(map[string]*Key),
 		Roles:              make(map[string]*Role),

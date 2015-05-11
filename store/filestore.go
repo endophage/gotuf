@@ -2,6 +2,7 @@ package store
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -16,10 +17,10 @@ import (
 
 // topLevelManifests determines the order signatures are verified when committing.
 var topLevelManifests = []string{
-	"root.json",
-	"targets.json",
-	"snapshot.json",
-	"timestamp.json",
+	"root",
+	"targets",
+	"snapshot",
+	"timestamp",
 }
 
 type persistedKeys struct {
@@ -51,34 +52,34 @@ func (f *fileSystemStore) stagedDir() string {
 	return filepath.Join(f.dir, "staged")
 }
 
-func (f *fileSystemStore) GetMeta() (map[string]json.RawMessage, error) {
-	meta := make(map[string]json.RawMessage)
+func (f *fileSystemStore) GetMeta(name string) (json.RawMessage, error) {
+	jsonName := fmt.Sprintf("%s.json", name)
+	var meta json.RawMessage
 	var err error
 	notExists := func(path string) bool {
 		_, err := os.Stat(path)
 		return os.IsNotExist(err)
 	}
-	for _, name := range topLevelManifests {
-		path := filepath.Join(f.stagedDir(), name)
+	path := filepath.Join(f.stagedDir(), jsonName)
+	if notExists(path) {
+		path = filepath.Join(f.repoDir(), jsonName)
 		if notExists(path) {
-			path = filepath.Join(f.repoDir(), name)
-			if notExists(path) {
-				continue
-			}
+			return nil, errors.ErrFileNotFound{path}
 		}
-		meta[name], err = ioutil.ReadFile(path)
-		if err != nil {
-			return nil, err
-		}
+	}
+	meta, err = ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
 	}
 	return meta, nil
 }
 
 func (f *fileSystemStore) SetMeta(name string, meta json.RawMessage) error {
+	jsonName := fmt.Sprintf("%s.json", name)
 	if err := f.createDirs(); err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(filepath.Join(f.stagedDir(), name), meta, 0644); err != nil {
+	if err := ioutil.WriteFile(filepath.Join(f.stagedDir(), jsonName), meta, 0644); err != nil {
 		return err
 	}
 	return nil
@@ -184,7 +185,8 @@ func (f *fileSystemStore) Commit(meta map[string]json.RawMessage, consistentSnap
 		}
 		var paths []string
 		if shouldCopyHashed(rel) {
-			paths = append(paths, util.HashedPaths(rel, hashes[rel])...)
+			relHashes := hashes[strings.TrimSuffix(rel, ".json")]
+			paths = append(paths, util.HashedPaths(rel, relHashes)...)
 		}
 		if shouldCopyUnhashed(rel) {
 			paths = append(paths, rel)
@@ -344,7 +346,8 @@ func (f *fileSystemStore) loadKeys(role string) ([]*data.Key, []byte, error) {
 }
 
 func (f *fileSystemStore) keysPath(role string) string {
-	return filepath.Join(f.dir, "keys", role+".json")
+	jsonRolePath := fmt.Sprintf("%s.json", role)
+	return filepath.Join(f.dir, "keys", jsonRolePath)
 }
 
 func (f *fileSystemStore) Clean() error {

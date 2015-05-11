@@ -42,7 +42,6 @@ func RegisterVerifier(name string, v Verifier) {
 type Ed25519Verifier struct{}
 
 func (v Ed25519Verifier) Verify(key *data.Key, sig []byte, msg []byte) error {
-	logrus.Info("Verifying signature with Ed25519")
 	var sigBytes [ed25519.SignatureSize]byte
 	if len(sig) != len(sigBytes) {
 		logrus.Infof("Signature length is incorrect, must be %d, was %d.", ed25519.SignatureSize, len(sig))
@@ -57,14 +56,12 @@ func (v Ed25519Verifier) Verify(key *data.Key, sig []byte, msg []byte) error {
 		logrus.Infof("Failed ed25519 verification")
 		return ErrInvalid
 	}
-	logrus.Info("verification succeeded.")
 	return nil
 }
 
 type RSAVerifier struct{}
 
 func (v RSAVerifier) Verify(key *data.Key, sig []byte, msg []byte) error {
-	logrus.Infof("Verifying signature with RSA %d", len(sig)*8)
 	digest := sha256.Sum256(msg)
 	pub, err := x509.ParsePKIXPublicKey(key.Value.Public)
 	if err != nil {
@@ -82,6 +79,5 @@ func (v RSAVerifier) Verify(key *data.Key, sig []byte, msg []byte) error {
 		logrus.Infof("Failed verification: %s", err)
 		return ErrInvalid
 	}
-	logrus.Info("verification succeeded.")
 	return nil
 }

@@ -32,7 +32,7 @@ func (RepoSuite) TestNewRepo(c *C) {
 	trust := signed.NewEd25519()
 
 	meta := map[string]json.RawMessage{
-		"root.json": []byte(`{
+		"root": []byte(`{
 		  "signed": {
 		    "_type": "root",
 		    "version": 1,
@@ -42,7 +42,7 @@ func (RepoSuite) TestNewRepo(c *C) {
 		  },
 		  "signatures": []
 		}`),
-		"targets.json": []byte(`{
+		"targets": []byte(`{
 		  "signed": {
 		    "_type": "targets",
 		    "version": 1,
@@ -51,7 +51,7 @@ func (RepoSuite) TestNewRepo(c *C) {
 		  },
 		  "signatures": []
 		}`),
-		"snapshot.json": []byte(`{
+		"snapshot": []byte(`{
 		  "signed": {
 		    "_type": "snapshot",
 		    "version": 1,
@@ -60,7 +60,7 @@ func (RepoSuite) TestNewRepo(c *C) {
 		  },
 		  "signatures": []
 		}`),
-		"timestamp.json": []byte(`{
+		"timestamp": []byte(`{
 		  "signed": {
 		    "_type": "timestamp",
 		    "version": 1,
@@ -257,13 +257,9 @@ func (RepoSuite) TestGenKey(c *C) {
 		}
 	}
 
-	// check root.json got staged
-	meta, err := local.GetMeta()
+	// check root got staged
+	rootJSON, err := local.GetMeta("root")
 	c.Assert(err, IsNil)
-	rootJSON, ok := meta["root.json"]
-	if !ok {
-		c.Fatal("missing root metadata")
-	}
 	s := &data.Signed{}
 	c.Assert(json.Unmarshal(rootJSON, s), IsNil)
 	stagedRoot := &data.Root{}
@@ -330,25 +326,21 @@ func (RepoSuite) TestRevokeKey(c *C) {
 func (RepoSuite) TestSign(c *C) {
 	trust := signed.NewEd25519()
 
-	baseMeta := map[string]json.RawMessage{"root.json": []byte(`{"signed":{},"signatures":[]}`)}
+	baseMeta := map[string]json.RawMessage{"root": []byte(`{"signed":{},"signatures":[]}`)}
 	db := testutil.GetSqliteDB()
 	defer testutil.FlushDB(db)
 	local := store.DBStore(db, "")
-	local.SetMeta("root.json", baseMeta["root.json"])
+	local.SetMeta("root", baseMeta["root"])
 	r, err := NewRepo(trust, local, "sha256")
 	c.Assert(err, IsNil)
 
 	// signing with no keys returns ErrInsufficientKeys
-	c.Assert(r.Sign("root.json"), Equals, tuferr.ErrInsufficientKeys{"root.json"})
+	c.Assert(r.Sign("root"), Equals, tuferr.ErrInsufficientKeys{"root"})
 
 	checkSigIDs := func(keyIDs ...string) {
-		meta, err := local.GetMeta()
+		rootJSON, err := local.GetMeta("root")
 		if err != nil {
 			c.Fatal("failed to retrieve meta")
-		}
-		rootJSON, ok := meta["root.json"]
-		if !ok {
-			c.Fatal("missing root.json")
 		}
 		s := &data.Signed{}
 		c.Assert(json.Unmarshal(rootJSON, s), IsNil)
@@ -363,11 +355,11 @@ func (RepoSuite) TestSign(c *C) {
 	kID, err := r.GenKey("root")
 	c.Assert(err, IsNil)
 	//c.Assert(local.SaveKey("root", key.SerializePrivate()), IsNil)
-	c.Assert(r.Sign("root.json"), IsNil)
+	c.Assert(r.Sign("root"), IsNil)
 	checkSigIDs(kID)
 
 	// signing again does not generate a duplicate signature
-	c.Assert(r.Sign("root.json"), IsNil)
+	c.Assert(r.Sign("root"), IsNil)
 	checkSigIDs(kID)
 
 	// signing with a new available key generates another signature
@@ -375,7 +367,7 @@ func (RepoSuite) TestSign(c *C) {
 	newkID, err := r.GenKey("root")
 	c.Assert(err, IsNil)
 	//c.Assert(local.SaveKey("root", newKey.SerializePrivate()), IsNil)
-	c.Assert(r.Sign("root.json"), IsNil)
+	c.Assert(r.Sign("root"), IsNil)
 	checkSigIDs(kID, newkID)
 }
 
@@ -389,27 +381,27 @@ func (RepoSuite) TestCommit(c *C) {
 	r, err := NewRepo(trust, local, "sha256")
 	c.Assert(err, IsNil)
 
-	// commit without root.json
-	c.Assert(r.Commit(), DeepEquals, tuferr.ErrMissingMetadata{"root.json"})
+	// commit without root
+	c.Assert(r.Commit(), DeepEquals, tuferr.ErrMissingMetadata{"root"})
 
-	// commit without targets.json
+	// commit without targets
 	genKey(c, r, "root")
-	c.Assert(r.Commit(), DeepEquals, tuferr.ErrMissingMetadata{"targets.json"})
+	c.Assert(r.Commit(), DeepEquals, tuferr.ErrMissingMetadata{"targets"})
 
-	// commit without snapshot.json
+	// commit without snapshot
 	genKey(c, r, "targets")
 	local.AddBlob("/foo.txt", testutil.SampleMeta())
 	c.Assert(r.AddTargets(nil, "foo.txt"), IsNil)
-	c.Assert(r.Commit(), DeepEquals, tuferr.ErrMissingMetadata{"snapshot.json"})
+	c.Assert(r.Commit(), DeepEquals, tuferr.ErrMissingMetadata{"snapshot"})
 
-	// commit without timestamp.json
+	// commit without timestamp
 	genKey(c, r, "snapshot")
 	c.Assert(r.Snapshot(CompressionTypeNone), IsNil)
-	c.Assert(r.Commit(), DeepEquals, tuferr.ErrMissingMetadata{"timestamp.json"})
+	c.Assert(r.Commit(), DeepEquals, tuferr.ErrMissingMetadata{"timestamp"})
 
-	// commit with timestamp.json but no timestamp key
+	// commit with timestamp but no timestamp key
 	c.Assert(r.Timestamp(), IsNil)
-	c.Assert(r.Commit(), DeepEquals, tuferr.ErrInsufficientSignatures{"timestamp.json", signed.ErrNoSignatures})
+	c.Assert(r.Commit(), DeepEquals, tuferr.ErrInsufficientSignatures{"timestamp", signed.ErrNoSignatures})
 
 	// commit success
 	genKey(c, r, "timestamp")
@@ -417,25 +409,25 @@ func (RepoSuite) TestCommit(c *C) {
 	c.Assert(r.Timestamp(), IsNil)
 	c.Assert(r.Commit(), IsNil)
 
-	// commit with an invalid root hash in snapshot.json due to new key creation
+	// commit with an invalid root hash in snapshot due to new key creation
 	genKey(c, r, "targets")
-	c.Assert(r.Sign("targets.json"), IsNil)
-	c.Assert(r.Commit(), DeepEquals, errors.New("tuf: invalid root.json in snapshot.json: wrong length"))
+	c.Assert(r.Sign("targets"), IsNil)
+	c.Assert(r.Commit(), DeepEquals, errors.New("tuf: invalid root in snapshot: wrong length"))
 
-	// commit with an invalid targets hash in snapshot.json
+	// commit with an invalid targets hash in snapshot
 	c.Assert(r.Snapshot(CompressionTypeNone), IsNil)
 	local.AddBlob("/bar.txt", testutil.SampleMeta())
 	c.Assert(r.AddTargets(nil, "bar.txt"), IsNil)
-	c.Assert(r.Commit(), DeepEquals, errors.New("tuf: invalid targets.json in snapshot.json: wrong length"))
+	c.Assert(r.Commit(), DeepEquals, errors.New("tuf: invalid targets in snapshot: wrong length"))
 
 	// commit with an invalid timestamp
 	c.Assert(r.Snapshot(CompressionTypeNone), IsNil)
 	// TODO: Change this test once Snapshot() supports compression and we
 	//       can guarantee the error will end in "wrong length" by
-	//       compressing a file and thus changing the size of snapshot.json
+	//       compressing a file and thus changing the size of snapshot
 	err = r.Commit()
 	c.Assert(err, NotNil)
-	c.Assert(err.Error()[0:44], Equals, "tuf: invalid snapshot.json in timestamp.json")
+	c.Assert(err.Error()[0:34], Equals, "tuf: invalid snapshot in timestamp")
 
 	// commit with a role's threshold greater than number of keys
 	root, err := r.root()
@@ -535,7 +527,7 @@ func (RepoSuite) TestCommitFileSystem(c *C) {
 	// don't use consistent snapshots to make the checks simpler
 	c.Assert(r.Init(false), IsNil)
 
-	// generating keys should stage root.json and create repo dirs
+	// generating keys should stage root and create repo dirs
 	genKey(c, r, "root")
 	genKey(c, r, "targets")
 	genKey(c, r, "snapshot")
@@ -548,10 +540,10 @@ func (RepoSuite) TestCommitFileSystem(c *C) {
 	c.Assert(r.AddTargets(nil, "foo.txt"), Equals, tuferr.ErrFileNotFound{tmp.stagedTargetPath("foo.txt")})
 	tmp.assertEmpty("repository")
 
-	// adding a file stages targets.json
+	// adding a file stages targets
 	tmp.writeStagedTarget("foo.txt", "foo")
 	c.Assert(r.AddTargets(nil, "foo.txt"), IsNil)
-	tmp.assertExists("staged/targets.json")
+	tmp.assertExists("staged/targets")
 	tmp.assertEmpty("repository")
 	t, err := r.targets()
 	c.Assert(err, IsNil)
@@ -560,12 +552,12 @@ func (RepoSuite) TestCommitFileSystem(c *C) {
 		c.Fatal("missing target file: /foo.txt")
 	}
 
-	// Snapshot() stages snapshot.json
+	// Snapshot() stages snapshot
 	c.Assert(r.Snapshot(CompressionTypeNone), IsNil)
 	tmp.assertExists("staged/snapshot.json")
 	tmp.assertEmpty("repository")
 
-	// Timestamp() stages timestamp.json
+	// Timestamp() stages timestamp
 	c.Assert(r.Timestamp(), IsNil)
 	tmp.assertExists("staged/timestamp.json")
 	tmp.assertEmpty("repository")
@@ -583,7 +575,7 @@ func (RepoSuite) TestCommitFileSystem(c *C) {
 	// adding and committing another file moves it into repository/targets
 	tmp.writeStagedTarget("path/to/bar.txt", "bar")
 	c.Assert(r.AddTargets(nil, "path/to/bar.txt"), IsNil)
-	tmp.assertExists("staged/targets.json")
+	tmp.assertExists("staged/targets")
 	c.Assert(r.Snapshot(CompressionTypeNone), IsNil)
 	c.Assert(r.Timestamp(), IsNil)
 	c.Assert(r.Commit(), IsNil)
@@ -594,7 +586,7 @@ func (RepoSuite) TestCommitFileSystem(c *C) {
 
 	// removing and committing a file removes it from repository/targets
 	c.Assert(r.RemoveTargets("foo.txt"), IsNil)
-	tmp.assertExists("staged/targets.json")
+	tmp.assertExists("staged/targets")
 	c.Assert(r.Snapshot(CompressionTypeNone), IsNil)
 	c.Assert(r.Timestamp(), IsNil)
 	c.Assert(r.Commit(), IsNil)
@@ -626,9 +618,10 @@ func (RepoSuite) TestConsistentSnapshot(c *C) {
 	hashes, err := r.fileHashes()
 	c.Assert(err, IsNil)
 
-	// root.json, targets.json and snapshot.json should exist at both hashed and unhashed paths
-	for _, path := range []string{"root.json", "targets.json", "snapshot.json"} {
-		repoPath := filepath.Join("repository", path)
+	// root, targets and snapshot should exist at both hashed and unhashed paths
+	for _, path := range []string{"root", "targets", "snapshot"} {
+		jsonPath := fmt.Sprintf("%s.json", path)
+		repoPath := filepath.Join("repository", jsonPath)
 		tmp.assertHashedFilesExist(repoPath, hashes[path])
 		tmp.assertExists(repoPath)
 	}
@@ -640,7 +633,7 @@ func (RepoSuite) TestConsistentSnapshot(c *C) {
 		tmp.assertNotExist(repoPath)
 	}
 
-	// timestamp.json should exist at an unhashed path (it doesn't have a hash)
+	// timestamp should exist at an unhashed path (it doesn't have a hash)
 	tmp.assertExists("repository/timestamp.json")
 
 	// removing a file should remove the hashed files
@@ -790,10 +783,10 @@ func (RepoSuite) TestHashAlgorithm(c *C) {
 		timestamp, err := r.timestamp()
 		c.Assert(err, IsNil)
 		for name, file := range map[string]data.FileMeta{
-			"foo.txt":       targets.Targets["/foo.txt"],
-			"root.json":     snapshot.Meta["root.json"],
-			"targets.json":  snapshot.Meta["targets.json"],
-			"snapshot.json": timestamp.Meta["snapshot.json"],
+			"foo.txt":  targets.Targets["/foo.txt"],
+			"root":     snapshot.Meta["root"],
+			"targets":  snapshot.Meta["targets"],
+			"snapshot": timestamp.Meta["snapshot"],
 		} {
 			for _, hashAlgorithm := range test.expected {
 				if _, ok := file.Hashes[hashAlgorithm]; !ok {
@@ -823,7 +816,7 @@ func testPassphraseFunc(p []byte) util.PassphraseFunc {
 //	}
 //
 //	assertKeys := func(role string, enc bool, expected []*keys.Key) {
-//		keysJSON := tmp.readFile("keys/" + role + ".json")
+//		keysJSON := tmp.readFile("keys/" + role + "")
 //		pk := &persistedKeys{}
 //		c.Assert(json.Unmarshal(keysJSON, pk), IsNil)
 //
@@ -925,7 +918,7 @@ func (RepoSuite) TestManageMultipleTargets(c *C) {
 	tmp.assertEmpty("staged/targets")
 	tmp.assertEmpty("staged")
 
-	// removing all targets removes them from the repository and targets.json
+	// removing all targets removes them from the repository and targets
 	c.Assert(r.RemoveTargets(), IsNil)
 	c.Assert(r.Snapshot(CompressionTypeNone), IsNil)
 	c.Assert(r.Timestamp(), IsNil)
