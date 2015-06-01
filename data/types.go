@@ -1,37 +1,43 @@
 package data
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	cjson "github.com/tent/canonical-json-go"
-
-	//cjson "github.com/tent/canonical-json-go"
 )
 
-const KeyIDLength = sha256.Size * 2
-
-type KeyValue struct {
-	Public HexBytes `json:"public"`
-	//	Private HexBytes `json:"private,omitempty"`
+var TUFTypes = map[string]string{
+	"targets":   "targets",
+	"root":      "root",
+	"snapshot":  "snapshot",
+	"timestamp": "timestamp",
 }
 
-type Key struct {
-	Type  string   `json:"keytype"`
-	Value KeyValue `json:"keyval"`
+// SetTUFTypes allows one to override some or all of the default
+// type names in TUF.
+func SetTUFTypes(ts map[string]string) {
+	for k, v := range ts {
+		TUFTypes[k] = v
+	}
 }
 
-func (k *Key) ID() string {
-	// create a copy so the private key is not included
-	data, _ := cjson.Marshal(&Key{
-		Type:  k.Type,
-		Value: KeyValue{Public: k.Value.Public},
-	})
-	digest := sha256.Sum256(data)
-	return hex.EncodeToString(digest[:])
+// Checks if type is correct. Lower case for consistency.
+func ValidTUFType(t string) bool {
+	t = strings.ToLower(t)
+	// most people will just use the defaults so have this optimal check
+	// first.
+	if _, ok := TUFTypes[t]; ok {
+		return true
+	}
+	// For people that feel the need to change the default type names.
+	for _, v := range TUFTypes {
+		if t == v {
+			return true
+		}
+	}
+	return false
 }
 
 type Signed struct {
@@ -43,6 +49,21 @@ type Signature struct {
 	KeyID     string   `json:"keyid"`
 	Method    string   `json:"method"`
 	Signature HexBytes `json:"sig"`
+}
+
+type Files map[string]FileMeta
+
+type Hashes map[string]HexBytes
+
+type FileMeta struct {
+	Length int64            `json:"length"`
+	Hashes Hashes           `json:"hashes"`
+	Custom *json.RawMessage `json:"custom,omitempty"`
+}
+
+type Delegations struct {
+	Keys  map[string]*TUFKey `json:"keys"`
+	Roles []*Role            `json:"roles"`
 }
 
 var defaultExpiryTimes = map[string]time.Time{
@@ -72,11 +93,11 @@ func DefaultExpires(role string) time.Time {
 }
 
 type Root struct {
-	Type    string           `json:"_type"`
-	Version int              `json:"version"`
-	Expires time.Time        `json:"expires"`
-	Keys    map[string]*Key  `json:"keys"`
-	Roles   map[string]*Role `json:"roles"`
+	Type    string             `json:"_type"`
+	Version int                `json:"version"`
+	Expires string             `json:"expires"`
+	Keys    map[string]*TUFKey `json:"keys"`
+	Roles   map[string]*Role   `json:"roles"`
 
 	ConsistentSnapshot bool `json:"consistent_snapshot"`
 }
@@ -84,19 +105,27 @@ type Root struct {
 func NewRoot() *Root {
 	return &Root{
 		Type:               "root",
-		Expires:            DefaultExpires("root"),
-		Keys:               make(map[string]*Key),
+		Expires:            DefaultExpires("root").String(),
+		Keys:               make(map[string]*TUFKey),
 		Roles:              make(map[string]*Role),
 		ConsistentSnapshot: true,
 	}
 }
 
 type Role struct {
-	KeyIDs    []string `json:"keyids"`
-	Threshold int      `json:"threshold"`
+	KeyIDs           []string `json:"keyids"`
+	Name             string   `json:"name"`
+	Paths            []string `json:"paths"`
+	PathHashPrefixes []string `json:"path_hash_prefixes"`
+	Threshold        int      `json:"threshold"`
+	Targets          *Targets `json:"-"`
 }
 
-func (r *Role) ValidKey(id string) bool {
+func (r Role) IsValid() bool {
+	return !(len(r.Paths) > 0 && len(r.PathHashPrefixes) > 0)
+}
+
+func (r Role) ValidKey(id string) bool {
 	for _, key := range r.KeyIDs {
 		if key == id {
 			return true
@@ -105,65 +134,85 @@ func (r *Role) ValidKey(id string) bool {
 	return false
 }
 
-type Files map[string]FileMeta
+func (r Role) CheckPaths(path string) bool {
+	for _, p := range r.Paths {
+		if strings.HasPrefix(path, p) {
+			return true
+		}
+	}
+	return false
+}
+
+func (r Role) CheckPrefixes(hash string) bool {
+	for _, p := range r.PathHashPrefixes {
+		if strings.HasPrefix(hash, p) {
+			return true
+		}
+	}
+	return false
+}
 
 type Snapshot struct {
-	Type    string    `json:"_type"`
-	Version int       `json:"version"`
-	Expires time.Time `json:"expires"`
-	Meta    Files     `json:"meta"`
+	Type    string `json:"_type"`
+	Version int    `json:"version"`
+	Expires string `json:"expires"`
+	Meta    Files  `json:"meta"`
 }
 
 func NewSnapshot() *Snapshot {
 	return &Snapshot{
 		Type:    "Snapshot",
-		Expires: DefaultExpires("snapshot"),
+		Expires: DefaultExpires("snapshot").String(),
 		Meta:    make(Files),
 	}
 }
 
-type Hashes map[string]HexBytes
-
-type FileMeta struct {
-	Length int64            `json:"length"`
-	Hashes Hashes           `json:"hashes"`
-	Custom *json.RawMessage `json:"custom,omitempty"`
+func (sp *Snapshot) hashForRole(role string) HexBytes {
+	return sp.Meta[role].Hashes["sha256"]
 }
 
-func (f FileMeta) HashAlgorithms() []string {
-	funcs := make([]string, 0, len(f.Hashes))
-	for name := range f.Hashes {
-		funcs = append(funcs, name)
-	}
-	return funcs
-}
+//type Hashes map[string]HexBytes
 
-type Targets struct {
-	Type    string    `json:"_type"`
-	Version int       `json:"version"`
-	Expires time.Time `json:"expires"`
-	Targets Files     `json:"targets"`
-}
-
-func NewTargets() *Targets {
-	return &Targets{
-		Type:    "Targets",
-		Expires: DefaultExpires("targets"),
-		Targets: make(Files),
-	}
-}
+//type FileMeta struct {
+//	Length int64            `json:"length"`
+//	Hashes Hashes           `json:"hashes"`
+//	Custom *json.RawMessage `json:"custom,omitempty"`
+//}
+//
+//func (f FileMeta) HashAlgorithms() []string {
+//	funcs := make([]string, 0, len(f.Hashes))
+//	for name := range f.Hashes {
+//		funcs = append(funcs, name)
+//	}
+//	return funcs
+//}
+//
+//type Targets struct {
+//	Type    string    `json:"_type"`
+//	Version int       `json:"version"`
+//	Expires time.Time `json:"expires"`
+//	Targets Files     `json:"targets"`
+//}
+//
+//func NewTargets() *Targets {
+//	return &Targets{
+//		Type:    "Targets",
+//		Expires: DefaultExpires("targets"),
+//		Targets: make(Files),
+//	}
+//}
 
 type Timestamp struct {
-	Type    string    `json:"_type"`
-	Version int       `json:"version"`
-	Expires time.Time `json:"expires"`
-	Meta    Files     `json:"meta"`
+	Type    string `json:"_type"`
+	Version int    `json:"version"`
+	Expires string `json:"expires"`
+	Meta    Files  `json:"meta"`
 }
 
 func NewTimestamp() *Timestamp {
 	return &Timestamp{
 		Type:    "Timestamp",
-		Expires: DefaultExpires("timestamp"),
+		Expires: DefaultExpires("timestamp").String(),
 		Meta:    make(Files),
 	}
 }

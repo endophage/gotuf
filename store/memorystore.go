@@ -26,7 +26,7 @@ type memoryStore struct {
 	keys  map[string][]*data.Key
 }
 
-func (m *memoryStore) GetMeta(name string) (json.RawMessage, error) {
+func (m *memoryStore) GetMeta(name string, size int64) (json.RawMessage, error) {
 	return m.meta[name], nil
 }
 

@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/endophage/go-tuf/data"
+	"github.com/endophage/go-tuf/roles"
 )
 
 var (
@@ -16,97 +17,45 @@ var (
 	ErrInvalidThreshold = errors.New("tuf: invalid role threshold")
 )
 
-type PublicKey struct {
-	data.Key
-	ID string
-}
-
-func NewPublicKey(keyType string, public []byte) *PublicKey {
-	// create a copy so the private key is not included
-	key := data.Key{
-		Type:  keyType,
-		Value: data.KeyValue{Public: public},
-	}
-	return &PublicKey{key, key.ID()}
-}
-
-type PrivateKey struct {
-	PublicKey
-	Private []byte
-}
-
-type DB struct {
-	types map[string]int
+type KeyDB struct {
 	roles map[string]*data.Role
-	keys  map[string]*PublicKey
+	keys  map[string]*data.PublicKey
 }
 
-func NewDB() *DB {
-	return &DB{
+func NewDB() *KeyDB {
+	return &KeyDB{
 		roles: make(map[string]*data.Role),
-		keys:  make(map[string]*PublicKey),
+		keys:  make(map[string]*data.PublicKey),
 	}
 }
 
-func (db *DB) AddKey(k *PublicKey) error {
-	//if _, ok := db.types[k.Type]; !ok {
-	//	return ErrWrongType
-	//}
-	//if len(k.Value.Public) != ed25519.PublicKeySize {
-	//	return ErrInvalidKey
-	//}
-
-	key := PublicKey{
-		Key: data.Key{
-			Type: k.Type,
-			Value: data.KeyValue{
-				Public: make([]byte, len(k.Value.Public)),
-			},
-		},
-		ID: k.ID,
-	}
-
-	copy(key.Value.Public, k.Value.Public)
-
-	db.keys[k.ID] = &key
-	return nil
+func (db *KeyDB) AddKey(k *data.PublicKey) {
+	db.keys[k.ID()] = k
 }
 
-var validRoles = map[string]struct{}{
-	"root":      {},
-	"targets":   {},
-	"snapshot":  {},
-	"timestamp": {},
-}
-
-func ValidRole(name string) bool {
-	_, ok := validRoles[name]
-	return ok
-}
-
-func (db *DB) AddRole(name string, r *data.Role) error {
-	if !ValidRole(name) {
+func (db *KeyDB) AddRole(r *data.Role) error {
+	if !roles.ValidRole(r.Name) {
 		return ErrInvalidRole
 	}
 	if r.Threshold < 1 {
 		return ErrInvalidThreshold
 	}
 
-	// validate all key ids have the correct length
+	// validate all key ids are in the keys maps
 	for _, id := range r.KeyIDs {
-		if len(id) != data.KeyIDLength {
+		if _, ok := db.keys[id]; !ok {
 			return ErrInvalidKeyID
 		}
 	}
 
-	db.roles[name] = r
+	db.roles[r.Name] = r
 	return nil
 }
 
-func (db *DB) GetKey(id string) *PublicKey {
+func (db *KeyDB) GetKey(id string) *data.PublicKey {
 	return db.keys[id]
 }
 
-func (db *DB) GetRole(name string) *data.Role {
+func (db *KeyDB) GetRole(name string) *data.Role {
 	return db.roles[name]
 }

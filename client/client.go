@@ -1,672 +1,272 @@
 package client
 
 import (
-	"bytes"
 	"encoding/json"
-	"errors"
+	"fmt"
 	"io"
-	"io/ioutil"
+	"path"
+	"path/filepath"
+	"strings"
 
 	"github.com/Sirupsen/logrus"
-
+	tuf "github.com/endophage/go-tuf"
 	"github.com/endophage/go-tuf/data"
 	"github.com/endophage/go-tuf/keys"
 	"github.com/endophage/go-tuf/signed"
 	"github.com/endophage/go-tuf/store"
-	"github.com/endophage/go-tuf/util"
+	"github.com/endophage/go-tuf/utils"
 )
 
-// RemoteStore downloads top-level metadata and target files from a remote
-// repository.
-type RemoteStore interface {
-	// GetMeta downloads the given metadata from remote storage.
-	//
-	// `name` is the filename of the metadata (e.g. "root.json")
-	//
-	// `err` is ErrNotFound if the given file does not exist.
-	//
-	// `size` is the size of the stream, -1 indicating an unknown length.
-	GetMeta(name string) (stream io.ReadCloser, size int64, err error)
-
-	// GetTarget downloads the given target file from remote storage.
-	//
-	// `path` is the path of the file relative to the root of the remote
-	//        targets directory (e.g. "/path/to/file.txt").
-	//
-	// `err` is ErrNotFound if the given file does not exist.
-	//
-	// `size` is the size of the stream, -1 indicating an unknown length.
-	GetTarget(path string) (stream io.ReadCloser, size int64, err error)
-}
-
-// Client provides methods for fetching updates from a remote repository and
-// downloading remote target files.
 type Client struct {
-	local  store.MetadataStore
-	remote RemoteStore
-
-	// The following four fields represent the versions of metatdata either
-	// from local storage or from recently downloaded metadata
-	rootVer      int
-	targetsVer   int
-	snapshotVer  int
-	timestampVer int
-
-	// targets is the list of available targets, either from local storage
-	// or from recently downloaded targets metadata
-	targets data.Files
-
-	// localMeta is the raw metadata from local storage and is used to
-	// check whether remote metadata is present locally
-	localMeta map[string]json.RawMessage
-
-	// db is a key DB used for verifying metadata
-	db *keys.DB
-
-	// consistentSnapshot indicates whether the remote storage is using
-	// consistent snapshots (as specified in root.json)
-	consistentSnapshot bool
+	local  *tuf.TufRepo
+	remote store.RemoteStore
+	keysDB *keys.KeyDB
 }
 
-func NewClient(local store.MetadataStore, remote RemoteStore) *Client {
-	return &Client{
-		local:  local,
-		remote: remote,
-	}
-}
-
-// Init initializes a local repository.
-//
-// The latest root.json is fetched from remote storage, verified using rootKeys
-// and threshold, and then saved in local storage. It is expected that rootKeys
-// were securely distributed with the software being updated.
-func (c *Client) Init(rootKeys []*data.Key, threshold int) error {
-	logrus.Info("initializing new TUF Client")
-	if len(rootKeys) < threshold {
-		logrus.Error("insufficient keys to initialize client")
-		return ErrInsufficientKeys
-	}
-	rootJSON, err := c.downloadMetaUnsafe("root.json")
+// Update an in memory copy of the TUF Repo. If an error is returned, the
+// Client instance should be considered corrupted and discarded as it may
+// be left in a partially updated state
+func (c *Client) Update() error {
+	err := c.update()
 	if err != nil {
-		logrus.Error("failed to download initial root.json: ", err.Error())
-		return err
-	}
-
-	c.db = keys.NewDB()
-	rootKeyIDs := make([]string, len(rootKeys))
-	for i, key := range rootKeys {
-		id := key.ID()
-		pk := keys.PublicKey{*key, id}
-		rootKeyIDs[i] = id
-		if err := c.db.AddKey(&pk); err != nil {
-			logrus.Error("failed to add key: ", err.Error())
+		switch err.(type) {
+		case tuf.ErrSigVerifyFail:
+		case tuf.ErrMetaExpired:
+		case tuf.ErrLocalRootExpired:
+			if err := c.downloadRoot(); err != nil {
+				logrus.Errorf("Client Update (Root):", err)
+				return err
+			}
+		default:
 			return err
 		}
 	}
-	role := &data.Role{Threshold: threshold, KeyIDs: rootKeyIDs}
-	if err := c.db.AddRole("root", role); err != nil {
-		logrus.Error("failed to add root role: ", err.Error())
-		return err
-	}
+	// If we error again, we now have the latest root and just want to fail
+	// out as there's no expectation the problem can be resolved automatically
+	return c.update()
+}
 
-	if err := c.decodeRoot(rootJSON); err != nil {
-		logrus.Error("failed to decode root.json: ", err.Error())
-		return err
-	}
-
-	err = c.local.SetMeta("root.json", rootJSON)
+func (c *Client) update() error {
+	err := c.downloadTimestamp()
 	if err != nil {
-		logrus.Error("failed to save root.json: ", err.Error())
+		logrus.Errorf("Client Update (Timestamp):", err)
 		return err
 	}
-	logrus.Info("successfully initialized TUF Client")
+	err = c.downloadSnapshot()
+	if err != nil {
+		logrus.Errorf("Client Update (Snapshot):", err)
+		return err
+	}
+	//err = c.checkRoot()
+	//if err != nil {
+	//	return err
+	//}
+	err = c.downloadTargets("targets")
+	if err != nil {
+		logrus.Errorf("Client Update (Targets):", err)
+		return err
+	}
 	return nil
 }
 
-// Update downloads and verifies remote metadata and returns updated targets.
-//
-// It performs the update part of "The client application" workflow from
-// section 5.1 of the TUF spec:
-//
-// https://github.com/theupdateframework/tuf/blob/v0.9.9/docs/tuf-spec.txt#L714
-func (c *Client) Update() (data.Files, error) {
-	logrus.Info("updating TUF Client")
-	files, err := c.update(false)
+// downloadRoot is responsible for downloading the root.json
+func (c *Client) downloadRoot() error {
+	logrus.Debug("Download root")
+	size := c.local.Snapshot.Meta["root"].Length
+
+	raw, err := c.remote.GetMeta("root", size)
 	if err != nil {
-		logrus.Error("failed to fully update TUF Client: ", err.Error())
+		return err
+	}
+	s := &data.Signed{}
+	err = json.Unmarshal(raw, s)
+	if err != nil {
+		return err
+	}
+	err = c.verifySigned("root", s, 0)
+	if err != nil {
+		return err
+	}
+	r := &data.Root{}
+	err = json.Unmarshal(s.Signed, r)
+	if err != nil {
+		return err
+	}
+	for kid, key := range r.Keys {
+		c.keysDB.AddKey(&data.PublicKey{TUFKey: *key})
+		logrus.Debug("Given Key ID:", kid, "\nGenerated Key ID:", key.ID())
+	}
+	for roleName, role := range r.Roles {
+		role.Name = strings.TrimSuffix(roleName, ".txt")
+		err := c.keysDB.AddRole(role)
+		if err != nil {
+			return err
+		}
+	}
+	c.local.SetRoot(r)
+	return nil
+}
+
+// downloadTimestamp is responsible for downloading the timestamp.json
+func (c *Client) downloadTimestamp() error {
+	raw, err := c.remote.GetMeta("timestamp", 5<<20)
+	if err != nil {
+		return err
+	}
+	s := &data.Signed{}
+	err = json.Unmarshal(raw, s)
+	if err != nil {
+		return err
+	}
+	err = c.verifySigned("timestamp", s, 0)
+	if err != nil {
+		return err
+	}
+	ts := &data.Timestamp{}
+	err = json.Unmarshal(s.Signed, ts)
+	if err != nil {
+		return err
+	}
+	c.local.SetTimestamp(ts)
+	return nil
+}
+
+// downloadSnapshot is responsible for downloading the snapshot.json
+func (c *Client) downloadSnapshot() error {
+	size := c.local.Timestamp.Meta["release.txt"].Length
+	raw, err := c.remote.GetMeta("release", size)
+	if err != nil {
+		return err
+	}
+	s := &data.Signed{}
+	err = json.Unmarshal(raw, s)
+	if err != nil {
+		return err
+	}
+	err = c.verifySigned("release", s, 0)
+	if err != nil {
+		return err
+	}
+	snap := &data.Snapshot{}
+	err = json.Unmarshal(s.Signed, snap)
+	if err != nil {
+		return err
+	}
+	c.local.SetSnapshot(snap)
+	return nil
+}
+
+// downloadTargets is responsible for downloading any targets file
+// including delegates roles. It will download the whole tree of
+// delegated roles below the given one
+func (c *Client) downloadTargets(role string) error {
+	snap := c.local.Snapshot
+	root := c.local.Root
+	r := c.keysDB.GetRole(role)
+	if r == nil {
+		return fmt.Errorf("Invalid role: %s", role)
+	}
+	keyIDs := r.KeyIDs
+	t, err := c.GetTargetsFile(role, keyIDs, snap.Meta, root.ConsistentSnapshot, r.Threshold)
+	if err != nil {
+		logrus.Error("Error getting targets file:", err)
+		return err
+	}
+	c.local.SetTargets(role, t)
+	for _, r := range t.Delegations.Roles {
+		err := c.downloadTargets(r.Name)
+		if err != nil {
+			logrus.Error("Failed to download ", role, err)
+			return err
+		}
+	}
+	return nil
+}
+
+// verifySigned checks the Signatures against the Signed field in an instance
+// of the Signed struct.
+func (c *Client) verifySigned(role string, s *data.Signed, prevVersion int) error {
+	if err := signed.Verify(s, role, prevVersion, c.keysDB); err != nil {
+		logrus.Error("Failed to verify signature of ", role, ": ", err)
+		return fmt.Errorf("Failed to verify signature of %s", role)
+	}
+	return nil
+}
+
+func (c Client) GetTargetsFile(roleName string, keyIDs []string, snapshotMeta data.Files, consistent bool, threshold int) (*data.Targets, error) {
+	rolePath, err := c.RoleTargetsPath(roleName, snapshotMeta, consistent)
+	if err != nil {
 		return nil, err
 	}
-	logrus.Info("successfully updated TUF Client")
-	return files, nil
-}
-
-func (c *Client) update(latestRoot bool) (data.Files, error) {
-	for {
-		// Always start the update using local metadata
-		if err := c.getLocalMeta(); err != nil {
-			if _, ok := err.(signed.ErrExpired); ok {
-				if !latestRoot {
-					err := c.updateWithLatestRoot(nil)
-					if err != nil {
-						return nil, err
-					}
-					latestRoot = true
-					continue
-				}
-				// this should not be reached as if the latest root has
-				// been downloaded and it is expired, updateWithLatestRoot
-				// should not have continued the update
-				return nil, err
-			}
-			if latestRoot && err == signed.ErrRoleThreshold {
-				// Root was updated with new keys, so our local metadata is no
-				// longer validating. Read only the versions from the local metadata
-				// and re-download everything.
-				if err := c.getRootAndLocalVersionsUnsafe(); err != nil {
-					return nil, err
-				}
-			} else {
-				return nil, err
-			}
-		}
-
-		// Get timestamp.json, extract snapshot.json file meta and save the
-		// timestamp.json locally
-		timestampJSON, err := c.downloadMetaUnsafe("timestamp.json")
-		if err != nil {
-			return nil, err
-		}
-		snapshotMeta, err := c.decodeTimestamp(timestampJSON)
-		if err != nil {
-			if err := c.checkDecodeFailed(err, signed.ErrRoleThreshold, latestRoot); err != nil {
-				return nil, err
-			}
-			latestRoot = true
-			continue
-		}
-		if err := c.local.SetMeta("timestamp.json", timestampJSON); err != nil {
-			return nil, err
-		}
-
-		snapshotJSON, rootMeta, targetsMeta, err := c.updateSnapshot(&snapshotMeta)
-		if err != nil {
-			if err := c.checkDecodeFailed(err, signed.ErrRoleThreshold, latestRoot); err != nil {
-				return nil, err
-			}
-			latestRoot = true
-			continue
-		}
-
-		// If we don't have the root.json, download it, save it in local
-		// storage and restart the update
-		if !c.hasMeta("root.json", *rootMeta) {
-			err := c.updateWithLatestRoot(rootMeta)
-			if err != nil {
-				return nil, err
-			}
-			latestRoot = true
-			continue
-		}
-
-		updatedTargets, err := c.updateTargets(targetsMeta)
-		if err != nil {
-			return nil, err
-		}
-
-		// Save the snapshot.json now it has been processed successfully
-		if err := c.local.SetMeta("snapshot.json", snapshotJSON); err != nil {
-			return nil, err
-		}
-
-		return updatedTargets, nil
-	}
-}
-
-func (c *Client) checkDecodeFailed(recv error, expected error, latestRoot bool) error {
-	if isDecodeFailedWithErr(recv, signed.ErrRoleThreshold) && !latestRoot {
-		err := c.updateWithLatestRoot(nil)
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-	return recv
-}
-
-func (c *Client) updateSnapshot(snapshotMeta *data.FileMeta) ([]byte, *data.FileMeta, *data.FileMeta, error) {
-	// Return ErrLatestSnapshot if we already have the latest snapshot.json
-	if c.hasMeta("snapshot.json", *snapshotMeta) {
-		return nil, nil, nil, ErrLatestSnapshot{c.snapshotVer}
-	}
-	// Get snapshot.json, then extract root.json and targets.json file meta.
-	//
-	// The snapshot.json is only saved locally after checking root.json and
-	// targets.json so that it will be re-downloaded on subsequent updates
-	// if this update fails.
-	snapshotJSON, err := c.downloadMeta("snapshot.json", *snapshotMeta)
+	r, err := c.remote.GetMeta(rolePath, snapshotMeta[roleName+".txt"].Length)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
-	rootMeta, targetsMeta, err := c.decodeSnapshot(snapshotJSON)
+	s := &data.Signed{}
+	err = json.Unmarshal(r, s)
 	if err != nil {
-		return nil, nil, nil, err
+		logrus.Error("Error unmarshalling targets file:", err)
+		return nil, err
 	}
-
-	return snapshotJSON, &rootMeta, &targetsMeta, nil
+	return c.ValidateTargetsFile(s, roleName)
 }
 
-func (c *Client) updateTargets(targetsMeta *data.FileMeta) (data.Files, error) {
-	// If we don't have the targets.json, download it, determine updated
-	// targets and save targets.json in local storage
-	var updatedTargets data.Files
-	if !c.hasMeta("targets.json", *targetsMeta) {
-		targetsJSON, err := c.downloadMeta("targets.json", *targetsMeta)
-		if err != nil {
-			return nil, err
-		}
-		updatedTargets, err = c.decodeTargets(targetsJSON)
-		if err != nil {
-			return nil, err
-		}
-		if err := c.local.SetMeta("targets.json", targetsJSON); err != nil {
-			return nil, err
-		}
+func (c Client) ValidateTargetsFile(s *data.Signed, roleName string) (*data.Targets, error) {
+	err := signed.Verify(s, roleName, 0, c.keysDB)
+	if err != nil {
+		return nil, err
 	}
-	return updatedTargets, nil
+	t := &data.Targets{}
+	err = json.Unmarshal(s.Signed, t)
+	if err != nil {
+		return nil, err
+	}
+	for _, k := range t.Delegations.Keys {
+		c.keysDB.AddKey(&data.PublicKey{TUFKey: *k})
+	}
+	for _, r := range t.Delegations.Roles {
+		c.keysDB.AddRole(r)
+	}
+	return t, nil
 }
 
-func (c *Client) updateWithLatestRoot(m *data.FileMeta) error {
-	var rootJSON json.RawMessage
-	var err error
-	if m == nil {
-		rootJSON, err = c.downloadMetaUnsafe("root.json")
-	} else {
-		rootJSON, err = c.downloadMeta("root.json", *m)
-	}
-	if err != nil {
-		return err
-	}
-	if err := c.decodeRoot(rootJSON); err != nil {
-		return err
-	}
-	if err := c.local.SetMeta("root.json", rootJSON); err != nil {
-		return err
-	}
-	//return c.update(true)
-	return nil
-}
-
-// getLocalMeta decodes and verifies metadata from local storage.
-//
-// The verification of local files is purely for consistency, if an attacker
-// has compromised the local storage, there is no guarantee it can be trusted.
-func (c *Client) getLocalMeta() error {
-	meta, err := c.local.GetMeta()
-	if err != nil {
-		return err
-	}
-
-	err = c.processRoot(meta)
-	if err != nil {
-		return err
-	}
-
-	if snapshotJSON, ok := meta["snapshot.json"]; ok {
-		snapshot := &data.Snapshot{}
-		if err := signed.UnmarshalTrusted(snapshotJSON, snapshot, "snapshot", c.db); err != nil {
-			return err
-		}
-		c.snapshotVer = snapshot.Version
-	}
-
-	if targetsJSON, ok := meta["targets.json"]; ok {
-		targets := &data.Targets{}
-		if err := signed.UnmarshalTrusted(targetsJSON, targets, "targets", c.db); err != nil {
-			return err
-		}
-		c.targetsVer = targets.Version
-		c.targets = targets.Targets
-	}
-
-	if timestampJSON, ok := meta["timestamp.json"]; ok {
-		timestamp := &data.Timestamp{}
-		if err := signed.UnmarshalTrusted(timestampJSON, timestamp, "timestamp", c.db); err != nil {
-			return err
-		}
-		c.timestampVer = timestamp.Version
-	}
-
-	c.localMeta = meta
-	return nil
-}
-
-func (c *Client) processRoot(meta map[string]json.RawMessage) error {
-	if rootJSON, ok := meta["root.json"]; ok {
-		// unmarshal root.json without verifying as we need the root
-		// keys first
-		s := &data.Signed{}
-		if err := json.Unmarshal(rootJSON, s); err != nil {
-			return err
-		}
-		root := &data.Root{}
-		if err := json.Unmarshal(s.Signed, root); err != nil {
-			return err
-		}
-		db := keys.NewDB()
-		for _, k := range root.Keys {
-			pk := keys.PublicKey{*k, k.ID()}
-			if err := db.AddKey(&pk); err != nil {
-				return err
-			}
-		}
-		for name, role := range root.Roles {
-			if err := db.AddRole(name, role); err != nil {
-				return err
-			}
-		}
-		if err := signed.Verify(s, "root", 0, db); err != nil {
-			return err
-		}
-		c.consistentSnapshot = root.ConsistentSnapshot
-		c.db = db
-	} else {
-		return ErrNoRootKeys
-	}
-	return nil
-}
-
-// maxMetaSize is the maximum number of bytes that will be downloaded when
-// getting remote metadata without knowing it's length.
-const maxMetaSize = 50 * 1024
-
-// downloadMetaUnsafe downloads top-level metadata from remote storage without
-// verifying it's length and hashes (used for example to download timestamp.json
-// which has unknown size). It will download at most maxMetaSize bytes.
-func (c *Client) downloadMetaUnsafe(name string) ([]byte, error) {
-	r, size, err := c.remote.GetMeta(name)
-	if err != nil {
-		if IsNotFound(err) {
-			return nil, ErrMissingRemoteMetadata{name}
-		}
-		return nil, ErrDownloadFailed{name, err}
-	}
-	defer r.Close()
-
-	// return ErrMetaTooLarge if the reported size is greater than maxMetaSize
-	if size > maxMetaSize {
-		return nil, ErrMetaTooLarge{name, size}
-	}
-
-	// although the size has been checked above, use a LimitReader in case
-	// the reported size is inaccurate, or size is -1 which indicates an
-	// unknown length
-	return ioutil.ReadAll(io.LimitReader(r, maxMetaSize))
-}
-
-// getRootAndLocalVersionsUnsafe decodes the versions stored in the local
-// metadata without verifying signatures to protect against downgrade attacks
-// when the root is replaced and contains new keys. It also sets the local meta
-// cache to only contain the local root metadata.
-func (c *Client) getRootAndLocalVersionsUnsafe() error {
-	type versionData struct {
-		Signed struct {
-			Version int
-		}
-	}
-
-	meta, err := c.local.GetMeta()
-	if err != nil {
-		return err
-	}
-
-	getVersion := func(name string) (int, error) {
-		m, ok := meta[name]
+func (c Client) RoleTargetsPath(roleName string, snapshotMeta data.Files, consistent bool) (string, error) {
+	if consistent {
+		roleMeta, ok := snapshotMeta[roleName]
 		if !ok {
-			return 0, nil
+			return "", fmt.Errorf("Consistent Snapshots Enabled but no meta found for target role")
 		}
-		var data versionData
-		if err := json.Unmarshal(m, &data); err != nil {
-			return 0, err
+		if _, ok := roleMeta.Hashes["sha256"]; !ok {
+			return "", fmt.Errorf("Consistent Snapshots Enabled and sha256 not found for targets file in snapshot meta")
 		}
-		return data.Signed.Version, nil
-	}
+		dir := filepath.Dir(roleName)
+		if strings.Contains(roleName, "/") {
+			lastSlashIdx := strings.LastIndex(roleName, "/")
+			roleName = roleName[lastSlashIdx+1:]
+		}
+		roleName = path.Join(
+			dir,
+			fmt.Sprintf("%s.%s.json", roleMeta.Hashes["sha256"], roleName),
+		)
 
-	c.timestampVer, err = getVersion("timestamp.json")
+	}
+	return roleName, nil
+}
+
+func (c Client) TargetMeta(path string) *data.FileMeta {
+	return c.local.FindTarget(path)
+}
+
+func (c Client) DownloadTarget(dst io.Writer, path string, meta *data.FileMeta) error {
+	reader, err := c.remote.GetTarget(path)
 	if err != nil {
 		return err
 	}
-	c.snapshotVer, err = getVersion("snapshot.json")
-	if err != nil {
-		return err
-	}
-	c.targetsVer, err = getVersion("targets.json")
-	if err != nil {
-		return err
-	}
-
-	root, ok := meta["root.json"]
-	if !ok {
-		return errors.New("tuf: missing local root after downloading, this should not be possible")
-	}
-	c.localMeta = map[string]json.RawMessage{"root.json": root}
-
-	return nil
-}
-
-// remoteGetFunc is the type of function the download method uses to download
-// remote files
-type remoteGetFunc func(string) (io.ReadCloser, int64, error)
-
-// download downloads the given file from remote storage using the get function,
-// adding hashes to the path if consistent snapshots are in use
-func (c *Client) download(file string, get remoteGetFunc, hashes data.Hashes) (io.ReadCloser, int64, error) {
-	if c.consistentSnapshot {
-		// try each hashed path in turn, and either return the contents,
-		// try the next one if a 404 is returned, or return an error
-		for _, path := range util.HashedPaths(file, hashes) {
-			r, size, err := get(path)
-			if err != nil {
-				if IsNotFound(err) {
-					continue
-				}
-				return nil, 0, err
-			}
-			return r, size, nil
-		}
-		return nil, 0, ErrNotFound{file}
-	} else {
-		return get(file)
-	}
-}
-
-// downloadMeta downloads top-level metadata from remote storage and verifies
-// it using the given file metadata.
-func (c *Client) downloadMeta(name string, m data.FileMeta) ([]byte, error) {
-	r, size, err := c.download(name, c.remote.GetMeta, m.Hashes)
-	if err != nil {
-		if IsNotFound(err) {
-			return nil, ErrMissingRemoteMetadata{name}
-		}
-		return nil, err
-	}
-	defer r.Close()
-
-	// return ErrWrongSize if the reported size is known and incorrect
-	if size >= 0 && size != m.Length {
-		return nil, ErrWrongSize{name, size, m.Length}
-	}
-
-	// wrap the data in a LimitReader so we download at most m.Length bytes
-	stream := io.LimitReader(r, m.Length)
-
-	// read the data, simultaneously writing it to buf and generating metadata
-	var buf bytes.Buffer
-	meta, err := util.GenerateFileMeta(io.TeeReader(stream, &buf), m.HashAlgorithms()...)
-	if err != nil {
-		return nil, err
-	}
-	if err := util.FileMetaEqual(meta, m); err != nil {
-		return nil, ErrDownloadFailed{name, err}
-	}
-	return buf.Bytes(), nil
-}
-
-// decodeRoot decodes and verifies root metadata.
-func (c *Client) decodeRoot(b json.RawMessage) error {
-	root := &data.Root{}
-	if err := signed.Unmarshal(b, root, "root", c.rootVer, c.db); err != nil {
-		return ErrDecodeFailed{"root.json", err}
-	}
-	c.rootVer = root.Version
-	c.consistentSnapshot = root.ConsistentSnapshot
-	return nil
-}
-
-// decodeSnapshot decodes and verifies snapshot metadata, and returns the new
-// root and targets file meta.
-func (c *Client) decodeSnapshot(b json.RawMessage) (data.FileMeta, data.FileMeta, error) {
-	snapshot := &data.Snapshot{}
-	if err := signed.Unmarshal(b, snapshot, "snapshot", c.snapshotVer, c.db); err != nil {
-		return data.FileMeta{}, data.FileMeta{}, ErrDecodeFailed{"snapshot.json", err}
-	}
-	c.snapshotVer = snapshot.Version
-	return snapshot.Meta["root.json"], snapshot.Meta["targets.json"], nil
-}
-
-// decodeTargets decodes and verifies targets metadata, sets c.targets and
-// returns updated targets.
-func (c *Client) decodeTargets(b json.RawMessage) (data.Files, error) {
-	targets := &data.Targets{}
-	if err := signed.Unmarshal(b, targets, "targets", c.targetsVer, c.db); err != nil {
-		return nil, ErrDecodeFailed{"targets.json", err}
-	}
-	updatedTargets := make(data.Files)
-	for path, meta := range targets.Targets {
-		if local, ok := c.targets[path]; ok {
-			if err := util.FileMetaEqual(local, meta); err == nil {
-				continue
-			}
-		}
-		updatedTargets[path] = meta
-	}
-	c.targetsVer = targets.Version
-	c.targets = targets.Targets
-	return updatedTargets, nil
-}
-
-// decodeTimestamp decodes and verifies timestamp metadata, and returns the
-// new snapshot file meta.
-func (c *Client) decodeTimestamp(b json.RawMessage) (data.FileMeta, error) {
-	timestamp := &data.Timestamp{}
-	if err := signed.Unmarshal(b, timestamp, "timestamp", c.timestampVer, c.db); err != nil {
-		return data.FileMeta{}, ErrDecodeFailed{"timestamp.json", err}
-	}
-	c.timestampVer = timestamp.Version
-	return timestamp.Meta["snapshot.json"], nil
-}
-
-// hasMeta checks whether local metadata has the given file meta
-func (c *Client) hasMeta(name string, m data.FileMeta) bool {
-	b, ok := c.localMeta[name]
-	if !ok {
-		return false
-	}
-	meta, err := util.GenerateFileMeta(bytes.NewReader(b), m.HashAlgorithms()...)
-	if err != nil {
-		return false
-	}
-	err = util.FileMetaEqual(meta, m)
-	return err == nil
-}
-
-type Destination interface {
-	io.Writer
-	Delete() error
-}
-
-// Download downloads the given target file from remote storage into dest.
-//
-// dest will be deleted and an error returned in the following situations:
-//
-//   * The target does not exist in the local targets.json
-//   * The target does not exist in remote storage
-//   * Metadata cannot be generated for the downloaded data
-//   * Generated metadata does not match local metadata for the given file
-func (c *Client) Download(name string, dest Destination) (err error) {
-	// delete dest if there is an error
-	defer func() {
-		if err != nil {
-			dest.Delete()
-		}
-	}()
-
-	// populate c.targets from local storage if not set
-	if c.targets == nil {
-		if err := c.getLocalMeta(); err != nil {
-			return err
-		}
-	}
-
-	// return ErrUnknownTarget if the file is not in the local targets.json
-	normalizedName := util.NormalizeTarget(name)
-	localMeta, ok := c.targets[normalizedName]
-	if !ok {
-		return ErrUnknownTarget{name}
-	}
-
-	// get the data from remote storage
-	r, size, err := c.download(normalizedName, c.remote.GetTarget, localMeta.Hashes)
-	if err != nil {
-		return err
-	}
-	defer r.Close()
-
-	return c.Verify(name, r, size, dest)
-}
-
-func (c *Client) Verify(name string, r io.Reader, size int64, dest Destination) error {
-	normalizedName := util.NormalizeTarget(name)
-	if c.targets == nil {
-		return ErrUnknownTarget{name}
-	}
-	localMeta, ok := c.targets[normalizedName]
-	if !ok {
-		return ErrUnknownTarget{name}
-	}
-
-	// return ErrWrongSize if the reported size is known and incorrect
-	if size >= 0 && size != localMeta.Length {
-		return ErrWrongSize{name, size, localMeta.Length}
-	}
-
-	// wrap the data in a LimitReader so we download at most localMeta.Length bytes
-	stream := io.LimitReader(r, localMeta.Length)
-
-	// read the data, simultaneously writing it to dest and generating metadata
-	actual, err := util.GenerateFileMeta(io.TeeReader(stream, dest), localMeta.HashAlgorithms()...)
-	if err != nil {
-		return ErrDownloadFailed{name, err}
-	}
-
-	// check the data has the correct length and hashes
-	if err := util.FileMetaEqual(actual, localMeta); err != nil {
-		if err == util.ErrWrongLength {
-			return ErrWrongSize{name, actual.Length, localMeta.Length}
-		}
-		return ErrDownloadFailed{name, err}
-	}
-
-	return nil
-
-}
-
-// Targets returns the complete list of available targets.
-func (c *Client) Targets() (data.Files, error) {
-	// populate c.targets from local storage if not set
-	if c.targets == nil {
-		if err := c.getLocalMeta(); err != nil {
-			return nil, err
-		}
-	}
-	return c.targets, nil
+	defer reader.Close()
+	r := io.TeeReader(
+		io.LimitReader(reader, meta.Length),
+		dst,
+	)
+	err = utils.ValidateTarget(r, meta)
+	return err
 }

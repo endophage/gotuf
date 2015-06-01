@@ -2,11 +2,10 @@ package signed
 
 import (
 	"fmt"
-	"time"
 )
 
 type ErrExpired struct {
-	Expired time.Time
+	Expired string
 }
 
 func (e ErrExpired) Error() string {

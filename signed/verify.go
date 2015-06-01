@@ -23,12 +23,12 @@ var (
 )
 
 type signedMeta struct {
-	Type    string    `json:"_type"`
-	Expires time.Time `json:"expires"`
-	Version int       `json:"version"`
+	Type    string `json:"_type"`
+	Expires string `json:"expires"`
+	Version int    `json:"version"`
 }
 
-func Verify(s *data.Signed, role string, minVersion int, db *keys.DB) error {
+func Verify(s *data.Signed, role string, minVersion int, db *keys.KeyDB) error {
 	if err := VerifySignatures(s, role, db); err != nil {
 		return err
 	}
@@ -37,11 +37,17 @@ func Verify(s *data.Signed, role string, minVersion int, db *keys.DB) error {
 	if err := json.Unmarshal(s.Signed, sm); err != nil {
 		return err
 	}
-	if strings.ToLower(sm.Type) != strings.ToLower(role) {
+	// This is not the valid way to check types as all targets files will
+	// have the "Targets" type.
+	//if strings.ToLower(sm.Type) != strings.ToLower(role) {
+	//	return ErrWrongType
+	//}
+	if !data.ValidTUFType(sm.Type) {
 		return ErrWrongType
 	}
 	if IsExpired(sm.Expires) {
-		return ErrExpired{sm.Expires}
+		//logrus.Errorf("Metadata for %s expired", role)
+		//return ErrExpired{sm.Expires}
 	}
 	if sm.Version < minVersion {
 		return ErrLowVersion{sm.Version, minVersion}
@@ -50,11 +56,18 @@ func Verify(s *data.Signed, role string, minVersion int, db *keys.DB) error {
 	return nil
 }
 
-var IsExpired = func(t time.Time) bool {
-	return t.Sub(time.Now()) <= 0
+var IsExpired = func(t string) bool {
+	ts, err := time.Parse(time.RFC3339, t)
+	if err != nil {
+		ts, err = time.Parse("2006-01-02 15:04:05 MST", t)
+		if err != nil {
+			return false
+		}
+	}
+	return ts.Sub(time.Now()) <= 0
 }
 
-func VerifySignatures(s *data.Signed, role string, db *keys.DB) error {
+func VerifySignatures(s *data.Signed, role string, db *keys.KeyDB) error {
 	if len(s.Signatures) == 0 {
 		return ErrNoSignatures
 	}
@@ -84,14 +97,15 @@ func VerifySignatures(s *data.Signed, role string, db *keys.DB) error {
 			logrus.Infof("continuing b/c keyid lookup was nil: %s\n", sig.KeyID)
 			continue
 		}
-
-		verifier, ok := Verifiers[sig.Method]
+		// make method lookup consistent with case uniformity.
+		method := strings.ToLower(sig.Method)
+		verifier, ok := Verifiers[method]
 		if !ok {
 			logrus.Infof("continuing b/c signing method is not supported: %s\n", sig.Method)
 			continue
 		}
 
-		if err := verifier.Verify(&key.Key, sig.Signature, msg); err != nil {
+		if err := verifier.Verify(key, sig.Signature, msg); err != nil {
 			logrus.Infof("continuing b/c signature was invalid\n")
 			continue
 		}
@@ -105,7 +119,7 @@ func VerifySignatures(s *data.Signed, role string, db *keys.DB) error {
 	return nil
 }
 
-func Unmarshal(b []byte, v interface{}, role string, minVersion int, db *keys.DB) error {
+func Unmarshal(b []byte, v interface{}, role string, minVersion int, db *keys.KeyDB) error {
 	s := &data.Signed{}
 	if err := json.Unmarshal(b, s); err != nil {
 		return err
@@ -116,7 +130,7 @@ func Unmarshal(b []byte, v interface{}, role string, minVersion int, db *keys.DB
 	return json.Unmarshal(s.Signed, v)
 }
 
-func UnmarshalTrusted(b []byte, v interface{}, role string, db *keys.DB) error {
+func UnmarshalTrusted(b []byte, v interface{}, role string, db *keys.KeyDB) error {
 	s := &data.Signed{}
 	if err := json.Unmarshal(b, s); err != nil {
 		return err

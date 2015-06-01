@@ -2,7 +2,6 @@ package signed
 
 import (
 	"github.com/endophage/go-tuf/data"
-	"github.com/endophage/go-tuf/keys"
 )
 
 // Signer encapsulates a signing service with some convenience methods to
@@ -17,13 +16,13 @@ func NewSigner(service CryptoService) *Signer {
 
 // Sign takes a data.Signed and a key, calculated and adds the signature
 // to the data.Signed
-func (signer *Signer) Sign(s *data.Signed, keys ...*keys.PublicKey) error {
+func (signer *Signer) Sign(s *data.Signed, keys ...*data.PublicKey) error {
 	signatures := make([]data.Signature, 0, len(s.Signatures)+1)
 	keyIDMemb := make(map[string]struct{})
 	keyIDs := make([]string, 0, len(keys))
 	for _, key := range keys {
-		keyIDMemb[key.ID] = struct{}{}
-		keyIDs = append(keyIDs, key.ID)
+		keyIDMemb[key.ID()] = struct{}{}
+		keyIDs = append(keyIDs, key.ID())
 	}
 	for _, sig := range s.Signatures {
 		if _, ok := keyIDMemb[sig.KeyID]; ok {
@@ -50,10 +49,10 @@ func (signer *Signer) Sign(s *data.Signed, keys ...*keys.PublicKey) error {
 //	return s, err // err may be nil but there's no point in checking, just return it
 //}
 
-func (signer *Signer) Create() (*keys.PublicKey, error) {
+func (signer *Signer) Create() (*data.PublicKey, error) {
 	return signer.service.Create()
 }
 
-func (signer *Signer) PublicKeys(keyIDs ...string) (map[string]*keys.PublicKey, error) {
+func (signer *Signer) PublicKeys(keyIDs ...string) (map[string]*data.PublicKey, error) {
 	return signer.service.PublicKeys(keyIDs...)
 }

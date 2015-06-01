@@ -2,6 +2,7 @@ package store
 
 import (
 	"encoding/json"
+	"io"
 
 	"github.com/endophage/go-tuf/data"
 )
@@ -9,14 +10,15 @@ import (
 type targetsWalkFunc func(path string, meta data.FileMeta) error
 
 type MetadataStore interface {
-	GetMeta(name string) (json.RawMessage, error)
+	GetMeta(name string, size int64) (json.RawMessage, error)
 	SetMeta(name string, blob json.RawMessage) error
 }
 
-type KeyStore interface {
-	GetKeys(role string) ([]*data.Key, error)
-	SaveKey(role string, key *data.Key) error
-}
+// These functions should be handled by the keyDB or signer
+//type KeyStore interface {
+//	GetKeys(role string) ([]*data.Key, error)
+//	SaveKey(role string, key *data.Key) error
+//}
 
 type TargetStore interface {
 	WalkStagedTargets(paths []string, targetsFn targetsWalkFunc) error
@@ -24,8 +26,13 @@ type TargetStore interface {
 
 type LocalStore interface {
 	MetadataStore
-	KeyStore
+	//	KeyStore
 	TargetStore
 	Clean() error
 	Commit(meta map[string]json.RawMessage, consistentSnapshot bool, hashes map[string]data.Hashes) error
+}
+
+type RemoteStore interface {
+	MetadataStore
+	GetTarget(path string) (io.ReadCloser, error)
 }

@@ -2,7 +2,6 @@ package signed
 
 import (
 	"github.com/endophage/go-tuf/data"
-	"github.com/endophage/go-tuf/keys"
 )
 
 type SigningService interface {
@@ -10,8 +9,8 @@ type SigningService interface {
 }
 
 type KeyService interface {
-	Create() (*keys.PublicKey, error)
-	PublicKeys(keyIDs ...string) (map[string]*keys.PublicKey, error)
+	Create() (*data.PublicKey, error)
+	PublicKeys(keyIDs ...string) (map[string]*data.PublicKey, error)
 }
 
 type CryptoService interface {
@@ -20,5 +19,5 @@ type CryptoService interface {
 }
 
 type Verifier interface {
-	Verify(key *data.Key, sig []byte, msg []byte) error
+	Verify(key data.Key, sig []byte, msg []byte) error
 }

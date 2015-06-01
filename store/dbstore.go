@@ -9,7 +9,7 @@ import (
 	"os"
 	"path"
 
-	"github.com/Sirupsen/logrus"
+	logrus "github.com/Sirupsen/logrus"
 	"github.com/endophage/go-tuf/data"
 	"github.com/endophage/go-tuf/util"
 )
@@ -96,13 +96,13 @@ func (dbs *dbStore) GetKeys(role string) ([]*data.Key, error) {
 	defer r.Close()
 	for r.Next() {
 		var jsonStr string
-		key := data.Key{}
+		key := new(data.Key)
 		r.Scan(&jsonStr)
-		err := json.Unmarshal([]byte(jsonStr), &key)
+		err := json.Unmarshal([]byte(jsonStr), key)
 		if err != nil {
 			return nil, err
 		}
-		keys = append(keys, &key)
+		keys = append(keys, key)
 	}
 	return keys, nil
 }

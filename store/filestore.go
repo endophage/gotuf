@@ -52,7 +52,7 @@ func (f *fileSystemStore) stagedDir() string {
 	return filepath.Join(f.dir, "staged")
 }
 
-func (f *fileSystemStore) GetMeta(name string) (json.RawMessage, error) {
+func (f *fileSystemStore) GetMeta(name string, size int64) (json.RawMessage, error) {
 	jsonName := fmt.Sprintf("%s.json", name)
 	var meta json.RawMessage
 	var err error
