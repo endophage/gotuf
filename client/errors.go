@@ -94,7 +94,7 @@ type ErrMetaTooLarge struct {
 }
 
 func (e ErrMetaTooLarge) Error() string {
-	return fmt.Sprintf("tuf: %s size %d bytes greater than maximum %d bytes", e.Name, e.Size, maxMetaSize)
+	return fmt.Sprintf("tuf: %s size %d bytes greater than maximum", e.Name, e.Size)
 }
 
 type ErrInvalidURL struct {

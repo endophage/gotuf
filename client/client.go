@@ -23,6 +23,14 @@ type Client struct {
 	keysDB *keys.KeyDB
 }
 
+func NewClient(local *tuf.TufRepo, remote store.RemoteStore, keysDB *keys.KeyDB) *Client {
+	return &Client{
+		local:  local,
+		remote: remote,
+		keysDB: keysDB,
+	}
+}
+
 // Update an in memory copy of the TUF Repo. If an error is returned, the
 // Client instance should be considered corrupted and discarded as it may
 // be left in a partially updated state
@@ -248,7 +256,6 @@ func (c Client) RoleTargetsPath(roleName string, snapshotMeta data.Files, consis
 			dir,
 			fmt.Sprintf("%s.%s.json", roleMeta.Hashes["sha256"], roleName),
 		)
-
 	}
 	return roleName, nil
 }

@@ -1,19 +1,32 @@
-package client
+package main
 
 import (
 	"encoding/json"
-	"io/ioutil"
-	"testing"
+	"fmt"
+	"os"
+	"path/filepath"
 
-	"github.com/Sirupsen/logrus"
-	tuf "github.com/endophage/go-tuf"
+	"github.com/codegangsta/cli"
+
+	"github.com/endophage/go-tuf"
+	"github.com/endophage/go-tuf/client"
 	"github.com/endophage/go-tuf/data"
 	"github.com/endophage/go-tuf/keys"
 	"github.com/endophage/go-tuf/roles"
 	"github.com/endophage/go-tuf/store"
 )
 
-func TestClientUpdate(t *testing.T) {
+var commandDownload = cli.Command{
+	Name:   "download",
+	Usage:  "provide the path to a target you wish to download.",
+	Action: download,
+}
+
+func download(ctx *cli.Context) {
+	if len(ctx.Args()) < 1 {
+		fmt.Println("At least one package must be provided.")
+		return
+	}
 	pypiRoot := `{
 	  "_type": "Root", 
 	  "expires": "2014-08-31 00:49:33 UTC", 
@@ -90,7 +103,8 @@ func TestClientUpdate(t *testing.T) {
 	r := &data.Root{}
 	err := json.Unmarshal([]byte(pypiRoot), r)
 	if err != nil {
-		t.Fatal(err)
+		fmt.Println("Could not read initial root.json")
+		return
 	}
 	kdb := keys.NewDB()
 	for _, key := range r.Keys {
@@ -100,11 +114,10 @@ func TestClientUpdate(t *testing.T) {
 		role.Name = roleName
 		err := kdb.AddRole(role)
 		if err != nil {
-			t.Fatal(err)
+			fmt.Println("Failed to add role to db")
+			return
 		}
 	}
-
-	logrus.SetLevel(logrus.DebugLevel)
 	repo := tuf.TufRepo{
 		Targets: make(map[string]*data.Targets),
 	}
@@ -117,34 +130,33 @@ func TestClientUpdate(t *testing.T) {
 	)
 	cached := store.NewFileCacheStore(remote, "/tmp/tuf")
 	if err != nil {
-		t.Fatal(err)
+		fmt.Println(err)
+		return
 	}
-	client := Client{
-		local:  &repo,
-		remote: cached,
-		keysDB: kdb,
-	}
+
+	client := client.NewClient(&repo, cached, kdb)
 
 	err = client.Update()
 	if err != nil {
-		t.Fatal(err)
+		fmt.Println(err)
+		return
 	}
-
-	testTarget := "packages/2.3/T/TracHTTPAuth/TracHTTPAuth-1.0.1-py2.3.egg"
-	expectedHash := "dbcaa6dc0035a636234f9b457d24bf1aeecac0a29b4da97a3b32692f2729f9db"
-	expectedSize := int64(8140)
-	m := client.TargetMeta(testTarget)
-	if m == nil {
-		t.Fatal("Failed to find existing target")
-	}
-	if m.Hashes["sha256"].String() != expectedHash {
-		t.Fatal("Target hash incorrect.\nExpected:", expectedHash, "\nReceived:", m.Hashes["sha256"].String())
-	}
-	if m.Length != expectedSize {
-		t.Fatal("Target size incorrect.\nExpected:", expectedSize, "\nReceived:", m.Length)
-	}
-	err = client.DownloadTarget(ioutil.Discard, testTarget, m)
+	filename := filepath.Base(ctx.Args()[0])
+	f, err := os.OpenFile(filename, os.O_TRUNC|os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
-		t.Fatal(err)
+		fmt.Println(err)
+		return
 	}
+	defer f.Close()
+	m := client.TargetMeta(ctx.Args()[0])
+	if m == nil {
+		fmt.Println("Requested package not found.")
+		return
+	}
+	err = client.DownloadTarget(f, ctx.Args()[0], m)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("Requested pacakge downloaded.")
 }
