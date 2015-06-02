@@ -112,46 +112,6 @@ func NewRoot() *Root {
 	}
 }
 
-type Role struct {
-	KeyIDs           []string `json:"keyids"`
-	Name             string   `json:"name"`
-	Paths            []string `json:"paths"`
-	PathHashPrefixes []string `json:"path_hash_prefixes"`
-	Threshold        int      `json:"threshold"`
-	Targets          *Targets `json:"-"`
-}
-
-func (r Role) IsValid() bool {
-	return !(len(r.Paths) > 0 && len(r.PathHashPrefixes) > 0)
-}
-
-func (r Role) ValidKey(id string) bool {
-	for _, key := range r.KeyIDs {
-		if key == id {
-			return true
-		}
-	}
-	return false
-}
-
-func (r Role) CheckPaths(path string) bool {
-	for _, p := range r.Paths {
-		if strings.HasPrefix(path, p) {
-			return true
-		}
-	}
-	return false
-}
-
-func (r Role) CheckPrefixes(hash string) bool {
-	for _, p := range r.PathHashPrefixes {
-		if strings.HasPrefix(hash, p) {
-			return true
-		}
-	}
-	return false
-}
-
 type Snapshot struct {
 	Type    string `json:"_type"`
 	Version int    `json:"version"`

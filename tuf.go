@@ -3,9 +3,13 @@ package tuf
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
+	"strings"
+	"time"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/endophage/gotuf/data"
+	"github.com/endophage/gotuf/keys"
 )
 
 type ErrSigVerifyFail struct{}
@@ -33,22 +37,73 @@ type TufRepo struct {
 	Targets   map[string]*data.Targets
 	Snapshot  *data.Snapshot
 	Timestamp *data.Timestamp
+	keysDB    *keys.KeyDB
 }
 
-func (tr *TufRepo) SetRoot(r *data.Root) {
+func NewTufRepo(keysDB *keys.KeyDB) *TufRepo {
+	repo := &TufRepo{
+		Targets: make(map[string]*data.Targets),
+		keysDB:  keysDB,
+	}
+	return repo
+}
+
+func (tr *TufRepo) SetRoot(s *data.Signed) error {
+	r := &data.Root{}
+	err := json.Unmarshal(s.Signed, r)
+	if err != nil {
+		return err
+	}
+	for kid, key := range r.Keys {
+		tr.keysDB.AddKey(&data.PublicKey{TUFKey: *key})
+		logrus.Debug("Given Key ID:", kid, "\nGenerated Key ID:", key.ID())
+	}
+	for roleName, role := range r.Roles {
+		role.Name = strings.TrimSuffix(roleName, ".txt")
+		err := tr.keysDB.AddRole(role)
+		if err != nil {
+			return err
+		}
+	}
 	tr.Root = r
+	return nil
 }
 
-func (tr *TufRepo) SetTimestamp(ts *data.Timestamp) {
+func (tr *TufRepo) SetTimestamp(s *data.Signed) error {
+	ts := &data.Timestamp{}
+	err := json.Unmarshal(s.Signed, ts)
+	if err != nil {
+		return err
+	}
 	tr.Timestamp = ts
+	return nil
 }
 
-func (tr *TufRepo) SetSnapshot(sn *data.Snapshot) {
-	tr.Snapshot = sn
+func (tr *TufRepo) SetSnapshot(s *data.Signed) error {
+	snap := &data.Snapshot{}
+	err := json.Unmarshal(s.Signed, snap)
+	if err != nil {
+		return err
+	}
+
+	tr.Snapshot = snap
+	return nil
 }
 
-func (tr *TufRepo) SetTargets(role string, t *data.Targets) {
+func (tr *TufRepo) SetTargets(role string, s *data.Signed) error {
+	t := &data.Targets{}
+	err := json.Unmarshal(s.Signed, t)
+	if err != nil {
+		return err
+	}
+	for _, k := range t.Delegations.Keys {
+		tr.keysDB.AddKey(&data.PublicKey{TUFKey: *k})
+	}
+	for _, r := range t.Delegations.Roles {
+		tr.keysDB.AddRole(r)
+	}
 	tr.Targets[role] = t
+	return nil
 }
 
 func (tr *TufRepo) WalkTargets(role, path string) *data.FileMeta {
@@ -82,4 +137,37 @@ func (tr *TufRepo) WalkTargets(role, path string) *data.FileMeta {
 
 func (tr TufRepo) FindTarget(path string) *data.FileMeta {
 	return tr.WalkTargets("targets", path)
+}
+
+// AddTargets takes any number of FileMeta objects and adds them to the
+// appropriate delegated targets files based on the keys the current
+// user has available for signing.
+// AddTargets may select any role that is both valid for the target and
+// the current user has signing keys for. If an error occurs the returned
+// data.Files will contain any targets that could not be added.
+func (tr *TufRepo) AddTargets(targets *data.Files) (*data.Files, error) {
+	return nil, nil
+}
+
+// AddTargetsToRole will attempt to add the given targets specifically to
+// the directed role. If the user does not have the signing keys for the role
+// the function will return an error and the full slice of targets.
+func (tr *TufRepo) AddTargetsToRole(role string, targets *data.Files) (*data.Files, error) {
+	return nil, nil
+}
+
+func (tr TufRepo) SignRoot(expires time.Time) (*data.Signed, error) {
+	return nil, nil
+}
+
+func (tr TufRepo) SignTargets(role string, expires time.Time) (*data.Signed, error) {
+	return nil, nil
+}
+
+func (tr TufRepo) SignSnapshot(expires time.Time) (*data.Signed, error) {
+	return nil, nil
+}
+
+func (tr TufRepo) SignTimestamp(expires time.Time) (*data.Signed, error) {
+	return nil, nil
 }

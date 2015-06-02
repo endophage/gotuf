@@ -12,7 +12,6 @@ import (
 	"github.com/endophage/gotuf/client"
 	"github.com/endophage/gotuf/data"
 	"github.com/endophage/gotuf/keys"
-	"github.com/endophage/gotuf/roles"
 	"github.com/endophage/gotuf/store"
 )
 
@@ -94,7 +93,7 @@ func download(ctx *cli.Context) {
 			"snapshot": "release",
 		},
 	)
-	roles.SetValidRoles(
+	data.SetValidRoles(
 		map[string]string{
 			"snapshot": "release",
 		},

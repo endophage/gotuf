@@ -1,8 +1,8 @@
 package utils
 
 import (
+	"bytes"
 	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
@@ -29,9 +29,8 @@ func ValidateTarget(r io.Reader, m *data.FileMeta) error {
 		return fmt.Errorf("Size of downloaded target did not match targets entry.\nExpected: %s\nReceived: %s\n", m.Length, length)
 	}
 	hashDigest := h.Sum(nil)
-	hashHex := hex.EncodeToString(hashDigest[:])
-	if m.Hashes["sha256"].String() != hashHex {
-		return fmt.Errorf("Hash of downloaded target did not match targets entry.\nExpected: %s\nReceived: %s\n", m.Hashes["sha256"].String(), hashHex)
+	if bytes.Compare(m.Hashes["sha256"], hashDigest[:]) != 0 {
+		return fmt.Errorf("Hash of downloaded target did not match targets entry.\nExpected: %x\nReceived: %x\n", m.Hashes["sha256"], hashDigest)
 	}
 	return nil
 }

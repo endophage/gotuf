@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	"github.com/endophage/gotuf/data"
-	"github.com/endophage/gotuf/roles"
 )
 
 var (
@@ -34,7 +33,7 @@ func (db *KeyDB) AddKey(k *data.PublicKey) {
 }
 
 func (db *KeyDB) AddRole(r *data.Role) error {
-	if !roles.ValidRole(r.Name) {
+	if !data.ValidRole(r.Name) {
 		return ErrInvalidRole
 	}
 	if r.Threshold < 1 {

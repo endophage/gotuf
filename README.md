@@ -8,3 +8,15 @@ without the code becoming overly convoluted.
 
 This implementation retains the same 3 Clause BSD license present on 
 the original flynn implementation.
+
+TODOs:
+
+- [ ] Add Targets to existing repo
+- [ ] Sign metadata files
+- [ ] Refactor TufRepo to take care of signing and verification
+- [ ] Ensure consistent capitalization in naming
+- [ ] Make caching of metadata files smarter
+- [ ] Add configuration for CLI commands. Order of configuration priority from most to least: flags, config file, defaults
+- [ ] Reasses organization of data types. Possibly consolidate a few things into the data package but break up package into a few more distinct files
+- [ ] Comprehensive test cases
+- [ ] Delete files no longer in use

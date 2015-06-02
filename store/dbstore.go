@@ -11,7 +11,7 @@ import (
 
 	logrus "github.com/Sirupsen/logrus"
 	"github.com/endophage/gotuf/data"
-	"github.com/endophage/gotuf/util"
+	"github.com/endophage/gotuf/utils"
 )
 
 const (
@@ -131,7 +131,7 @@ func (dbs *dbStore) Clean() error {
 
 // AddBlob adds an object to the store
 func (dbs *dbStore) AddBlob(path string, meta data.FileMeta) {
-	path = util.NormalizeTarget(path)
+	path = utils.NormalizeTarget(path)
 	jsonbytes := []byte{}
 	if meta.Custom != nil {
 		jsonbytes, _ = meta.Custom.MarshalJSON()

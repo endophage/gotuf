@@ -79,10 +79,10 @@ func (c *Client) update() error {
 
 // downloadRoot is responsible for downloading the root.json
 func (c *Client) downloadRoot() error {
-	logrus.Debug("Download root")
-	size := c.local.Snapshot.Meta["root"].Length
+	role := data.RoleName("root")
+	size := c.local.Snapshot.Meta[role].Length
 
-	raw, err := c.remote.GetMeta("root", size)
+	raw, err := c.remote.GetMeta(role, size)
 	if err != nil {
 		return err
 	}
@@ -91,33 +91,18 @@ func (c *Client) downloadRoot() error {
 	if err != nil {
 		return err
 	}
-	err = c.verifySigned("root", s, 0)
+	err = signed.Verify(s, role, 0, c.keysDB)
 	if err != nil {
 		return err
 	}
-	r := &data.Root{}
-	err = json.Unmarshal(s.Signed, r)
-	if err != nil {
-		return err
-	}
-	for kid, key := range r.Keys {
-		c.keysDB.AddKey(&data.PublicKey{TUFKey: *key})
-		logrus.Debug("Given Key ID:", kid, "\nGenerated Key ID:", key.ID())
-	}
-	for roleName, role := range r.Roles {
-		role.Name = strings.TrimSuffix(roleName, ".txt")
-		err := c.keysDB.AddRole(role)
-		if err != nil {
-			return err
-		}
-	}
-	c.local.SetRoot(r)
+	c.local.SetRoot(s)
 	return nil
 }
 
 // downloadTimestamp is responsible for downloading the timestamp.json
 func (c *Client) downloadTimestamp() error {
-	raw, err := c.remote.GetMeta("timestamp", 5<<20)
+	role := data.RoleName("timestamp")
+	raw, err := c.remote.GetMeta(role, 5<<20)
 	if err != nil {
 		return err
 	}
@@ -126,23 +111,19 @@ func (c *Client) downloadTimestamp() error {
 	if err != nil {
 		return err
 	}
-	err = c.verifySigned("timestamp", s, 0)
+	err = signed.Verify(s, role, 0, c.keysDB)
 	if err != nil {
 		return err
 	}
-	ts := &data.Timestamp{}
-	err = json.Unmarshal(s.Signed, ts)
-	if err != nil {
-		return err
-	}
-	c.local.SetTimestamp(ts)
+	c.local.SetTimestamp(s)
 	return nil
 }
 
 // downloadSnapshot is responsible for downloading the snapshot.json
 func (c *Client) downloadSnapshot() error {
-	size := c.local.Timestamp.Meta["release.txt"].Length
-	raw, err := c.remote.GetMeta("release", size)
+	role := data.RoleName("snapshot")
+	size := c.local.Timestamp.Meta[role+".txt"].Length
+	raw, err := c.remote.GetMeta(role, size)
 	if err != nil {
 		return err
 	}
@@ -151,16 +132,11 @@ func (c *Client) downloadSnapshot() error {
 	if err != nil {
 		return err
 	}
-	err = c.verifySigned("release", s, 0)
+	err = signed.Verify(s, role, 0, c.keysDB)
 	if err != nil {
 		return err
 	}
-	snap := &data.Snapshot{}
-	err = json.Unmarshal(s.Signed, snap)
-	if err != nil {
-		return err
-	}
-	c.local.SetSnapshot(snap)
+	c.local.SetSnapshot(s)
 	return nil
 }
 
@@ -168,6 +144,7 @@ func (c *Client) downloadSnapshot() error {
 // including delegates roles. It will download the whole tree of
 // delegated roles below the given one
 func (c *Client) downloadTargets(role string) error {
+	role = data.RoleName(role) // this will really only do something for base targets role
 	snap := c.local.Snapshot
 	root := c.local.Root
 	r := c.keysDB.GetRole(role)
@@ -175,12 +152,16 @@ func (c *Client) downloadTargets(role string) error {
 		return fmt.Errorf("Invalid role: %s", role)
 	}
 	keyIDs := r.KeyIDs
-	t, err := c.GetTargetsFile(role, keyIDs, snap.Meta, root.ConsistentSnapshot, r.Threshold)
+	s, err := c.GetTargetsFile(role, keyIDs, snap.Meta, root.ConsistentSnapshot, r.Threshold)
 	if err != nil {
 		logrus.Error("Error getting targets file:", err)
 		return err
 	}
-	c.local.SetTargets(role, t)
+	err = c.local.SetTargets(role, s)
+	if err != nil {
+		return err
+	}
+	t := c.local.Targets[role]
 	for _, r := range t.Delegations.Roles {
 		err := c.downloadTargets(r.Name)
 		if err != nil {
@@ -191,17 +172,7 @@ func (c *Client) downloadTargets(role string) error {
 	return nil
 }
 
-// verifySigned checks the Signatures against the Signed field in an instance
-// of the Signed struct.
-func (c *Client) verifySigned(role string, s *data.Signed, prevVersion int) error {
-	if err := signed.Verify(s, role, prevVersion, c.keysDB); err != nil {
-		logrus.Error("Failed to verify signature of ", role, ": ", err)
-		return fmt.Errorf("Failed to verify signature of %s", role)
-	}
-	return nil
-}
-
-func (c Client) GetTargetsFile(roleName string, keyIDs []string, snapshotMeta data.Files, consistent bool, threshold int) (*data.Targets, error) {
+func (c Client) GetTargetsFile(roleName string, keyIDs []string, snapshotMeta data.Files, consistent bool, threshold int) (*data.Signed, error) {
 	rolePath, err := c.RoleTargetsPath(roleName, snapshotMeta, consistent)
 	if err != nil {
 		return nil, err
@@ -216,26 +187,11 @@ func (c Client) GetTargetsFile(roleName string, keyIDs []string, snapshotMeta da
 		logrus.Error("Error unmarshalling targets file:", err)
 		return nil, err
 	}
-	return c.ValidateTargetsFile(s, roleName)
-}
-
-func (c Client) ValidateTargetsFile(s *data.Signed, roleName string) (*data.Targets, error) {
-	err := signed.Verify(s, roleName, 0, c.keysDB)
+	err = signed.Verify(s, roleName, 0, c.keysDB)
 	if err != nil {
 		return nil, err
 	}
-	t := &data.Targets{}
-	err = json.Unmarshal(s.Signed, t)
-	if err != nil {
-		return nil, err
-	}
-	for _, k := range t.Delegations.Keys {
-		c.keysDB.AddKey(&data.PublicKey{TUFKey: *k})
-	}
-	for _, r := range t.Delegations.Roles {
-		c.keysDB.AddRole(r)
-	}
-	return t, nil
+	return s, nil
 }
 
 func (c Client) RoleTargetsPath(roleName string, snapshotMeta data.Files, consistent bool) (string, error) {

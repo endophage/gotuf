@@ -12,7 +12,7 @@ import (
 	"github.com/endophage/gotuf/data"
 	"github.com/endophage/gotuf/encrypted"
 	"github.com/endophage/gotuf/errors"
-	"github.com/endophage/gotuf/util"
+	"github.com/endophage/gotuf/utils"
 )
 
 // topLevelManifests determines the order signatures are verified when committing.
@@ -28,7 +28,7 @@ type persistedKeys struct {
 	Data      json.RawMessage `json:"data"`
 }
 
-func FileSystemStore(dir string, p util.PassphraseFunc) LocalStore {
+func FileSystemStore(dir string, p utils.PassphraseFunc) LocalStore {
 	return &fileSystemStore{
 		dir:            dir,
 		passphraseFunc: p,
@@ -38,7 +38,7 @@ func FileSystemStore(dir string, p util.PassphraseFunc) LocalStore {
 
 type fileSystemStore struct {
 	dir            string
-	passphraseFunc util.PassphraseFunc
+	passphraseFunc utils.PassphraseFunc
 
 	// keys is a cache of persisted keys to avoid decrypting multiple times
 	keys map[string][]*data.Key
@@ -112,7 +112,7 @@ func (f *fileSystemStore) WalkStagedTargets(paths []string, targetsFn targetsWal
 				return err
 			}
 			defer file.Close()
-			meta, err := util.GenerateFileMeta(file, "sha256")
+			meta, err := utils.GenerateFileMeta(file, "sha256")
 			if err != nil {
 				return err
 			}
@@ -141,7 +141,7 @@ func (f *fileSystemStore) WalkStagedTargets(paths []string, targetsFn targetsWal
 			}
 			return err
 		}
-		meta, err := util.GenerateFileMeta(file, "sha256")
+		meta, err := utils.GenerateFileMeta(file, "sha256")
 		if err != nil {
 			return err
 		}
@@ -186,7 +186,7 @@ func (f *fileSystemStore) Commit(meta map[string]json.RawMessage, consistentSnap
 		var paths []string
 		if shouldCopyHashed(rel) {
 			relHashes := hashes[strings.TrimSuffix(rel, ".json")]
-			paths = append(paths, util.HashedPaths(rel, relHashes)...)
+			paths = append(paths, utils.HashedPaths(rel, relHashes)...)
 		}
 		if shouldCopyUnhashed(rel) {
 			paths = append(paths, rel)

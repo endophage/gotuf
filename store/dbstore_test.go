@@ -5,22 +5,22 @@ import (
 	"testing"
 
 	"github.com/endophage/gotuf/data"
-	"github.com/endophage/gotuf/testutil"
+	"github.com/endophage/gotuf/testutils"
 )
 
 // TestDBStore just ensures we can initialize an empty store.
 // Nothing to test, just ensure no crashes :-)
 func TestDBStore(t *testing.T) {
-	db := testutil.GetSqliteDB()
-	defer testutil.FlushDB(db)
+	db := testutils.GetSqliteDB()
+	defer testutils.FlushDB(db)
 	_ = DBStore(db, "")
 }
 
 func TestLoadFiles(t *testing.T) {
-	db := testutil.GetSqliteDB()
-	defer testutil.FlushDB(db)
+	db := testutils.GetSqliteDB()
+	defer testutils.FlushDB(db)
 	store := DBStore(db, "docker.io/testImage")
-	testmeta := testutil.SampleMeta()
+	testmeta := testutils.SampleMeta()
 	store.AddBlob("/foo.txt", testmeta)
 
 	called := false
@@ -52,10 +52,10 @@ func TestLoadFiles(t *testing.T) {
 }
 
 func TestAddBlob(t *testing.T) {
-	db := testutil.GetSqliteDB()
-	defer testutil.FlushDB(db)
+	db := testutils.GetSqliteDB()
+	defer testutils.FlushDB(db)
 	store := DBStore(db, "docker.io/testImage")
-	testmeta := testutil.SampleMeta()
+	testmeta := testutils.SampleMeta()
 	store.AddBlob("/foo.txt", testmeta)
 
 	called := false
@@ -100,10 +100,10 @@ func TestAddBlob(t *testing.T) {
 
 func TestRemoveBlob(t *testing.T) {
 	testPath := "/foo.txt"
-	db := testutil.GetSqliteDB()
-	defer testutil.FlushDB(db)
+	db := testutils.GetSqliteDB()
+	defer testutils.FlushDB(db)
 	store := DBStore(db, "docker.io/testImage")
-	meta := testutil.SampleMeta()
+	meta := testutils.SampleMeta()
 
 	store.AddBlob(testPath, meta)
 
@@ -124,10 +124,10 @@ func TestRemoveBlob(t *testing.T) {
 }
 
 func TestLoadFilesWithPath(t *testing.T) {
-	db := testutil.GetSqliteDB()
-	defer testutil.FlushDB(db)
+	db := testutils.GetSqliteDB()
+	defer testutils.FlushDB(db)
 	store := DBStore(db, "docker.io/testImage")
-	meta := testutil.SampleMeta()
+	meta := testutils.SampleMeta()
 
 	store.AddBlob("/foo.txt", meta)
 	store.AddBlob("/bar.txt", meta)
