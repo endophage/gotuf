@@ -5,8 +5,8 @@ import (
 	"io"
 	"os"
 
-	tuf "github.com/endophage/go-tuf/client"
-	"github.com/endophage/go-tuf/data"
+	tuf "github.com/endophage/gotuf/client"
+	"github.com/endophage/gotuf/data"
 	"github.com/flynn/go-docopt"
 )
 

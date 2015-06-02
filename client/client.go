@@ -9,12 +9,12 @@ import (
 	"strings"
 
 	"github.com/Sirupsen/logrus"
-	tuf "github.com/endophage/go-tuf"
-	"github.com/endophage/go-tuf/data"
-	"github.com/endophage/go-tuf/keys"
-	"github.com/endophage/go-tuf/signed"
-	"github.com/endophage/go-tuf/store"
-	"github.com/endophage/go-tuf/utils"
+	tuf "github.com/endophage/gotuf"
+	"github.com/endophage/gotuf/data"
+	"github.com/endophage/gotuf/keys"
+	"github.com/endophage/gotuf/signed"
+	"github.com/endophage/gotuf/store"
+	"github.com/endophage/gotuf/utils"
 )
 
 type Client struct {

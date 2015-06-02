@@ -6,7 +6,7 @@ import (
 	"os"
 
 	_ "code.google.com/p/gosqlite/sqlite3"
-	"github.com/endophage/go-tuf/data"
+	"github.com/endophage/gotuf/data"
 )
 
 var counter int = 1

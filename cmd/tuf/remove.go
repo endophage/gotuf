@@ -3,7 +3,7 @@ package main
 import (
 	"errors"
 
-	"github.com/endophage/go-tuf"
+	"github.com/endophage/gotuf"
 	"github.com/flynn/go-docopt"
 )
 

@@ -1,7 +1,7 @@
 package signed
 
 import (
-	"github.com/endophage/go-tuf/data"
+	"github.com/endophage/gotuf/data"
 )
 
 // Signer encapsulates a signing service with some convenience methods to

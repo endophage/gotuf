@@ -10,8 +10,8 @@ import (
 	"path"
 
 	logrus "github.com/Sirupsen/logrus"
-	"github.com/endophage/go-tuf/data"
-	"github.com/endophage/go-tuf/util"
+	"github.com/endophage/gotuf/data"
+	"github.com/endophage/gotuf/util"
 )
 
 const (

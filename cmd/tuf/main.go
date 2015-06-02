@@ -14,10 +14,10 @@ import (
 	"github.com/docker/docker/pkg/term"
 	"github.com/flynn/go-docopt"
 
-	"github.com/endophage/go-tuf"
-	"github.com/endophage/go-tuf/signed"
-	"github.com/endophage/go-tuf/store"
-	"github.com/endophage/go-tuf/util"
+	"github.com/endophage/gotuf"
+	"github.com/endophage/gotuf/signed"
+	"github.com/endophage/gotuf/store"
+	"github.com/endophage/gotuf/util"
 )
 
 func main() {

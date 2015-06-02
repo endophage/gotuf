@@ -5,8 +5,8 @@ import (
 	"io/ioutil"
 	"os"
 
-	tuf "github.com/endophage/go-tuf/client"
-	"github.com/endophage/go-tuf/util"
+	tuf "github.com/endophage/gotuf/client"
+	"github.com/endophage/gotuf/util"
 	"github.com/flynn/go-docopt"
 )
 
@@ -35,7 +35,7 @@ func cmdGet(args *docopt.Args, client *tuf.Client) error {
 		return err
 	}
 	target := util.NormalizeTarget(args.String["<target>"])
-	file, err := ioutil.TempFile("", "go-tuf")
+	file, err := ioutil.TempFile("", "gotuf")
 	if err != nil {
 		return err
 	}

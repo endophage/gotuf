@@ -3,8 +3,8 @@ package signed
 import (
 	"testing"
 
-	"github.com/endophage/go-tuf/data"
-	"github.com/endophage/go-tuf/keys"
+	"github.com/endophage/gotuf/data"
+	"github.com/endophage/gotuf/keys"
 )
 
 type MockCryptoService struct {

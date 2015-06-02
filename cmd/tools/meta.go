@@ -6,9 +6,9 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/endophage/go-tuf"
+	"github.com/endophage/gotuf"
 	"github.com/flynn/go-docopt"
-	"github.com/endophage/go-tuf/util"
+	"github.com/endophage/gotuf/util"
 )
 
 func init() {

@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/endophage/go-tuf/data"
-	"github.com/endophage/go-tuf/keys"
+	"github.com/endophage/gotuf/data"
+	"github.com/endophage/gotuf/keys"
 	"github.com/tent/canonical-json-go"
 )
 

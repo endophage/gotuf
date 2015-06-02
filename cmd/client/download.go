@@ -8,12 +8,12 @@ import (
 
 	"github.com/codegangsta/cli"
 
-	"github.com/endophage/go-tuf"
-	"github.com/endophage/go-tuf/client"
-	"github.com/endophage/go-tuf/data"
-	"github.com/endophage/go-tuf/keys"
-	"github.com/endophage/go-tuf/roles"
-	"github.com/endophage/go-tuf/store"
+	"github.com/endophage/gotuf"
+	"github.com/endophage/gotuf/client"
+	"github.com/endophage/gotuf/data"
+	"github.com/endophage/gotuf/keys"
+	"github.com/endophage/gotuf/roles"
+	"github.com/endophage/gotuf/store"
 )
 
 var commandDownload = cli.Command{

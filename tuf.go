@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/endophage/go-tuf/data"
+	"github.com/endophage/gotuf/data"
 )
 
 type ErrSigVerifyFail struct{}

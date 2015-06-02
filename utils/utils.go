@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/endophage/go-tuf/data"
+	"github.com/endophage/gotuf/data"
 )
 
 func Download(url url.URL) (*http.Response, error) {

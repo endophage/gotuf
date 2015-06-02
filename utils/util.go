@@ -1,4 +1,4 @@
-package util
+package utils
 
 import (
 	"crypto/hmac"
@@ -13,7 +13,7 @@ import (
 	gopath "path"
 	"path/filepath"
 
-	"github.com/endophage/go-tuf/data"
+	"github.com/endophage/gotuf/data"
 )
 
 var ErrWrongLength = errors.New("wrong length")

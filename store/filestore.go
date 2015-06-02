@@ -9,10 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/endophage/go-tuf/data"
-	"github.com/endophage/go-tuf/encrypted"
-	"github.com/endophage/go-tuf/errors"
-	"github.com/endophage/go-tuf/util"
+	"github.com/endophage/gotuf/data"
+	"github.com/endophage/gotuf/encrypted"
+	"github.com/endophage/gotuf/errors"
+	"github.com/endophage/gotuf/util"
 )
 
 // topLevelManifests determines the order signatures are verified when committing.

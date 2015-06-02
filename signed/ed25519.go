@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 
 	"github.com/agl/ed25519"
-	"github.com/endophage/go-tuf/data"
+	"github.com/endophage/gotuf/data"
 )
 
 // Ed25519 implements a simple in memory keystore and trust service

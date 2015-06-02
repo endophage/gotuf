@@ -11,7 +11,7 @@ import (
 	"path"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/endophage/go-tuf/utils"
+	"github.com/endophage/gotuf/utils"
 )
 
 // HTTPStore manages pulling and pushing metadata from and to a remote

@@ -13,7 +13,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/agl/ed25519"
-	"github.com/endophage/go-tuf/data"
+	"github.com/endophage/gotuf/data"
 )
 
 // Verifiers serves as a map of all verifiers available on the system and

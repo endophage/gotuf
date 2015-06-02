@@ -13,11 +13,11 @@ import (
 	"strings"
 
 	"github.com/agl/ed25519"
-	"github.com/endophage/go-tuf"
-	"github.com/endophage/go-tuf/data"
-	"github.com/endophage/go-tuf/signed"
-	"github.com/endophage/go-tuf/store"
-	"github.com/endophage/go-tuf/util"
+	"github.com/endophage/gotuf"
+	"github.com/endophage/gotuf/data"
+	"github.com/endophage/gotuf/signed"
+	"github.com/endophage/gotuf/store"
+	"github.com/endophage/gotuf/util"
 	. "gopkg.in/check.v1"
 )
 

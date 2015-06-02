@@ -3,8 +3,8 @@ package keys
 import (
 	"errors"
 
-	"github.com/endophage/go-tuf/data"
-	"github.com/endophage/go-tuf/roles"
+	"github.com/endophage/gotuf/data"
+	"github.com/endophage/gotuf/roles"
 )
 
 var (

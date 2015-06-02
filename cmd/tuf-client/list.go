@@ -6,7 +6,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/dustin/go-humanize"
-	tuf "github.com/endophage/go-tuf/client"
+	tuf "github.com/endophage/gotuf/client"
 	"github.com/flynn/go-docopt"
 )
 

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/endophage/go-tuf/client"
-	"github.com/endophage/go-tuf/store"
+	"github.com/endophage/gotuf/client"
+	"github.com/endophage/gotuf/store"
 	"github.com/flynn/go-docopt"
 )
 

@@ -1,12 +1,12 @@
-package util
+package utils
 
 import (
 	"bytes"
 	"encoding/hex"
 	"testing"
 
+	"github.com/endophage/gotuf/data"
 	. "gopkg.in/check.v1"
-	"github.com/endophage/go-tuf/data"
 )
 
 // Hook up gocheck into the "go test" runner.

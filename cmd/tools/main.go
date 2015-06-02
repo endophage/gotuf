@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/endophage/go-tuf"
-	"github.com/endophage/go-tuf/signed"
-	"github.com/endophage/go-tuf/store"
-	"github.com/endophage/go-tuf/testutil"
+	"github.com/endophage/gotuf"
+	"github.com/endophage/gotuf/signed"
+	"github.com/endophage/gotuf/store"
+	"github.com/endophage/gotuf/testutil"
 	"github.com/flynn/go-docopt"
 )
 

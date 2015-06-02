@@ -7,8 +7,8 @@ import (
 	cjson "github.com/tent/canonical-json-go"
 	. "gopkg.in/check.v1"
 
-	"github.com/endophage/go-tuf/data"
-	"github.com/endophage/go-tuf/keys"
+	"github.com/endophage/gotuf/data"
+	"github.com/endophage/gotuf/keys"
 )
 
 // Hook up gocheck into the "go test" runner.
