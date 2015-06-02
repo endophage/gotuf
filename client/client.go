@@ -80,7 +80,7 @@ func (c *Client) update() error {
 // downloadRoot is responsible for downloading the root.json
 func (c *Client) downloadRoot() error {
 	role := data.RoleName("root")
-	size := c.local.Snapshot.Meta[role].Length
+	size := c.local.Snapshot.Signed.Meta[role].Length
 
 	raw, err := c.remote.GetMeta(role, size)
 	if err != nil {
@@ -122,7 +122,7 @@ func (c *Client) downloadTimestamp() error {
 // downloadSnapshot is responsible for downloading the snapshot.json
 func (c *Client) downloadSnapshot() error {
 	role := data.RoleName("snapshot")
-	size := c.local.Timestamp.Meta[role+".txt"].Length
+	size := c.local.Timestamp.Signed.Meta[role+".txt"].Length
 	raw, err := c.remote.GetMeta(role, size)
 	if err != nil {
 		return err
@@ -145,8 +145,8 @@ func (c *Client) downloadSnapshot() error {
 // delegated roles below the given one
 func (c *Client) downloadTargets(role string) error {
 	role = data.RoleName(role) // this will really only do something for base targets role
-	snap := c.local.Snapshot
-	root := c.local.Root
+	snap := c.local.Snapshot.Signed
+	root := c.local.Root.Signed
 	r := c.keysDB.GetRole(role)
 	if r == nil {
 		return fmt.Errorf("Invalid role: %s", role)
@@ -161,7 +161,7 @@ func (c *Client) downloadTargets(role string) error {
 	if err != nil {
 		return err
 	}
-	t := c.local.Targets[role]
+	t := c.local.Targets[role].Signed
 	for _, r := range t.Delegations.Roles {
 		err := c.downloadTargets(r.Name)
 		if err != nil {

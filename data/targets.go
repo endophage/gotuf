@@ -3,7 +3,15 @@ package data
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
+
+	cjson "github.com/tent/canonical-json-go"
 )
+
+type SignedTargets struct {
+	Signatures []Signature
+	Signed     Targets
+}
 
 type Targets struct {
 	Type        string      `json:"_type"`
@@ -15,8 +23,8 @@ type Targets struct {
 
 // GetMeta attempts to find the targets entry for the path. It
 // will return nil in the case of the target not being found.
-func (t Targets) GetMeta(path string) *FileMeta {
-	for p, meta := range t.Targets {
+func (t SignedTargets) GetMeta(path string) *FileMeta {
+	for p, meta := range t.Signed.Targets {
 		if p == path {
 			return &meta
 		}
@@ -28,13 +36,13 @@ func (t Targets) GetMeta(path string) *FileMeta {
 // the signers for the given target path. If no appropriate roles
 // can be found, it will simply return nil for the return values.
 // The returned slice of Role will have order maintained relative
-// to the role slice on t.Delegations per TUF spec proposal on using
+// to the role slice on Delegations per TUF spec proposal on using
 // order to determine priority.
-func (t Targets) GetDelegations(path string) []*Role {
+func (t SignedTargets) GetDelegations(path string) []*Role {
 	roles := make([]*Role, 0)
 	pathHashBytes := sha256.Sum256([]byte(path))
 	pathHash := hex.EncodeToString(pathHashBytes[:])
-	for _, r := range t.Delegations.Roles {
+	for _, r := range t.Signed.Delegations.Roles {
 		if !r.IsValid() {
 			// Role has both Paths and PathHashPrefixes.
 			continue
@@ -50,4 +58,36 @@ func (t Targets) GetDelegations(path string) []*Role {
 		//keysDB.AddRole(r)
 	}
 	return roles
+}
+
+func (t SignedTargets) ToSigned() (*Signed, error) {
+	s, err := cjson.Marshal(t.Signed)
+	if err != nil {
+		return nil, err
+	}
+	signed := json.RawMessage{}
+	err = signed.UnmarshalJSON(s)
+	if err != nil {
+		return nil, err
+	}
+	sigs := make([]Signature, len(t.Signatures))
+	copy(sigs, t.Signatures)
+	return &Signed{
+		Signatures: sigs,
+		Signed:     signed,
+	}, nil
+}
+
+func TargetsFromSigned(s *Signed) (*SignedTargets, error) {
+	t := Targets{}
+	err := json.Unmarshal(s.Signed, &t)
+	if err != nil {
+		return nil, err
+	}
+	sigs := make([]Signature, len(s.Signatures))
+	copy(sigs, s.Signatures)
+	return &SignedTargets{
+		Signatures: sigs,
+		Signed:     t,
+	}, nil
 }

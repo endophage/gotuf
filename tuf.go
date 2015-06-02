@@ -3,7 +3,6 @@ package tuf
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"strings"
 	"time"
 
@@ -33,32 +32,31 @@ func (e ErrLocalRootExpired) Error() string {
 // TufRepo is an in memory representation of the Signed section of all
 // the TUF files.
 type TufRepo struct {
-	Root      *data.Root
-	Targets   map[string]*data.Targets
-	Snapshot  *data.Snapshot
-	Timestamp *data.Timestamp
+	Root      *data.SignedRoot
+	Targets   map[string]*data.SignedTargets
+	Snapshot  *data.SignedSnapshot
+	Timestamp *data.SignedTimestamp
 	keysDB    *keys.KeyDB
 }
 
 func NewTufRepo(keysDB *keys.KeyDB) *TufRepo {
 	repo := &TufRepo{
-		Targets: make(map[string]*data.Targets),
+		Targets: make(map[string]*data.SignedTargets),
 		keysDB:  keysDB,
 	}
 	return repo
 }
 
 func (tr *TufRepo) SetRoot(s *data.Signed) error {
-	r := &data.Root{}
-	err := json.Unmarshal(s.Signed, r)
+	r, err := data.RootFromSigned(s)
 	if err != nil {
 		return err
 	}
-	for kid, key := range r.Keys {
+	for kid, key := range r.Signed.Keys {
 		tr.keysDB.AddKey(&data.PublicKey{TUFKey: *key})
 		logrus.Debug("Given Key ID:", kid, "\nGenerated Key ID:", key.ID())
 	}
-	for roleName, role := range r.Roles {
+	for roleName, role := range r.Signed.Roles {
 		role.Name = strings.TrimSuffix(roleName, ".txt")
 		err := tr.keysDB.AddRole(role)
 		if err != nil {
@@ -70,8 +68,7 @@ func (tr *TufRepo) SetRoot(s *data.Signed) error {
 }
 
 func (tr *TufRepo) SetTimestamp(s *data.Signed) error {
-	ts := &data.Timestamp{}
-	err := json.Unmarshal(s.Signed, ts)
+	ts, err := data.TimestampFromSigned(s)
 	if err != nil {
 		return err
 	}
@@ -80,8 +77,7 @@ func (tr *TufRepo) SetTimestamp(s *data.Signed) error {
 }
 
 func (tr *TufRepo) SetSnapshot(s *data.Signed) error {
-	snap := &data.Snapshot{}
-	err := json.Unmarshal(s.Signed, snap)
+	snap, err := data.SnapshotFromSigned(s)
 	if err != nil {
 		return err
 	}
@@ -91,15 +87,14 @@ func (tr *TufRepo) SetSnapshot(s *data.Signed) error {
 }
 
 func (tr *TufRepo) SetTargets(role string, s *data.Signed) error {
-	t := &data.Targets{}
-	err := json.Unmarshal(s.Signed, t)
+	t, err := data.TargetsFromSigned(s)
 	if err != nil {
 		return err
 	}
-	for _, k := range t.Delegations.Keys {
+	for _, k := range t.Signed.Delegations.Keys {
 		tr.keysDB.AddKey(&data.PublicKey{TUFKey: *k})
 	}
-	for _, r := range t.Delegations.Roles {
+	for _, r := range t.Signed.Delegations.Roles {
 		tr.keysDB.AddRole(r)
 	}
 	tr.Targets[role] = t
@@ -117,11 +112,11 @@ func (tr *TufRepo) WalkTargets(role, path string) *data.FileMeta {
 			// role not found
 			return nil
 		}
-		if m, ok := t.Targets[path]; ok {
+		if m, ok := t.Signed.Targets[path]; ok {
 			return &m
 		}
 		// Depth first search of delegations:
-		for _, r := range t.Delegations.Roles {
+		for _, r := range t.Signed.Delegations.Roles {
 			if r.CheckPrefixes(pathHex) || r.CheckPaths(path) {
 				logrus.Debug("Found delegation ", r.Name, " for path ", path)
 				if m := walkTargets(r.Name); m != nil {
