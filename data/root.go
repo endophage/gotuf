@@ -9,15 +9,31 @@ import (
 type SignedRoot struct {
 	Signatures []Signature
 	Signed     Root
+	Dirty      bool
 }
 
 type Root struct {
-	Type               string             `json:"_type"`
-	Version            int                `json:"version"`
-	Expires            string             `json:"expires"`
-	Keys               map[string]*TUFKey `json:"keys"`
-	Roles              map[string]*Role   `json:"roles"`
-	ConsistentSnapshot bool               `json:"consistent_snapshot"`
+	Type               string               `json:"_type"`
+	Version            int                  `json:"version"`
+	Expires            string               `json:"expires"`
+	Keys               map[string]*TUFKey   `json:"keys"`
+	Roles              map[string]*RootRole `json:"roles"`
+	ConsistentSnapshot bool                 `json:"consistent_snapshot"`
+}
+
+func NewRoot(keys map[string]*TUFKey, roles map[string]*RootRole, consistent bool) (*SignedRoot, error) {
+	return &SignedRoot{
+		Signatures: make([]Signature, 0),
+		Signed: Root{
+			Type:               TUFTypes["root"],
+			Version:            0,
+			Expires:            DefaultExpires("root").String(),
+			Keys:               keys,
+			Roles:              roles,
+			ConsistentSnapshot: consistent,
+		},
+		Dirty: true,
+	}, nil
 }
 
 func (r SignedRoot) ToSigned() (*Signed, error) {

@@ -65,15 +65,23 @@ func (c *Client) update() error {
 		logrus.Errorf("Client Update (Snapshot):", err)
 		return err
 	}
-	//err = c.checkRoot()
-	//if err != nil {
-	//	return err
-	//}
+	err = c.checkRoot()
+	if err != nil {
+		return err
+	}
 	err = c.downloadTargets("targets")
 	if err != nil {
 		logrus.Errorf("Client Update (Targets):", err)
 		return err
 	}
+	return nil
+}
+
+// checkRoot determines if the hash, and size are still those reported
+// in the snapshot file. It will also check the expiry, however, if the
+// hash and size in snapshot are unchanged but the root file has expired,
+// there is little expectation that the situation can be remedied.
+func (c Client) checkRoot() error {
 	return nil
 }
 

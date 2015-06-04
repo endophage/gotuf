@@ -112,7 +112,7 @@ func (f *fileSystemStore) WalkStagedTargets(paths []string, targetsFn targetsWal
 				return err
 			}
 			defer file.Close()
-			meta, err := utils.GenerateFileMeta(file, "sha256")
+			meta, err := data.NewFileMeta(file, "sha256")
 			if err != nil {
 				return err
 			}
@@ -141,7 +141,7 @@ func (f *fileSystemStore) WalkStagedTargets(paths []string, targetsFn targetsWal
 			}
 			return err
 		}
-		meta, err := utils.GenerateFileMeta(file, "sha256")
+		meta, err := data.NewFileMeta(file, "sha256")
 		if err != nil {
 			return err
 		}

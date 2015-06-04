@@ -3,9 +3,11 @@ package data
 import (
 	"fmt"
 	"strings"
+
+	"github.com/endophage/gotuf/errors"
 )
 
-var validRoles = map[string]string{
+var ValidRoles = map[string]string{
 	"root":      "root",
 	"targets":   "targets",
 	"snapshot":  "snapshot",
@@ -14,12 +16,12 @@ var validRoles = map[string]string{
 
 func SetValidRoles(rs map[string]string) {
 	for k, v := range rs {
-		validRoles[strings.ToLower(k)] = strings.ToLower(v)
+		ValidRoles[strings.ToLower(k)] = strings.ToLower(v)
 	}
 }
 
 func RoleName(role string) string {
-	if r, ok := validRoles[role]; ok {
+	if r, ok := ValidRoles[role]; ok {
 		return r
 	}
 	return role
@@ -30,14 +32,14 @@ func RoleName(role string) string {
 // the the appropriate parent roles exist.
 func ValidRole(name string) bool {
 	name = strings.ToLower(name)
-	if _, ok := validRoles[name]; ok {
-		return true
+	if v, ok := ValidRoles[name]; ok {
+		return name == v
 	}
-	targetsBase := fmt.Sprintf("%s/", validRoles["targets"])
+	targetsBase := fmt.Sprintf("%s/", ValidRoles["targets"])
 	if strings.HasPrefix(name, targetsBase) {
 		return true
 	}
-	for _, v := range validRoles {
+	for _, v := range ValidRoles {
 		if name == v {
 			return true
 		}
@@ -45,12 +47,37 @@ func ValidRole(name string) bool {
 	return false
 }
 
+type RootRole struct {
+	KeyIDs    []string `json:"keyids"`
+	Threshold int      `json:"threshold"`
+}
 type Role struct {
-	KeyIDs           []string `json:"keyids"`
+	RootRole
 	Name             string   `json:"name"`
-	Paths            []string `json:"paths"`
-	PathHashPrefixes []string `json:"path_hash_prefixes"`
-	Threshold        int      `json:"threshold"`
+	Paths            []string `json:"paths,omitempty"`
+	PathHashPrefixes []string `json:"path_hash_prefixes,omitempty"`
+}
+
+func NewRole(name string, threshold int, keyIDs, paths, pathHashPrefixes []string) (*Role, error) {
+	if len(paths) > 0 && len(pathHashPrefixes) > 0 {
+		return nil, errors.ErrInvalidRole{}
+	}
+	if threshold < 1 {
+		return nil, errors.ErrInvalidRole{}
+	}
+	if !ValidRole(name) {
+		return nil, errors.ErrInvalidRole{}
+	}
+	return &Role{
+		RootRole: RootRole{
+			KeyIDs:    keyIDs,
+			Threshold: threshold,
+		},
+		Name:             name,
+		Paths:            paths,
+		PathHashPrefixes: pathHashPrefixes,
+	}, nil
+
 }
 
 func (r Role) IsValid() bool {

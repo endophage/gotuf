@@ -1,6 +1,7 @@
 package data
 
 import (
+	"bytes"
 	"encoding/json"
 
 	cjson "github.com/tent/canonical-json-go"
@@ -9,6 +10,7 @@ import (
 type SignedSnapshot struct {
 	Signatures []Signature
 	Signed     Snapshot
+	Dirty      bool
 }
 
 type Snapshot struct {
@@ -18,8 +20,39 @@ type Snapshot struct {
 	Meta    Files  `json:"meta"`
 }
 
-func (sp *Snapshot) hashForRole(role string) HexBytes {
-	return sp.Meta[role].Hashes["sha256"]
+func NewSnapshot(root *Signed, targets *Signed) (*SignedSnapshot, error) {
+	rootJSON, err := json.Marshal(root)
+	if err != nil {
+		return nil, err
+	}
+	targetsJSON, err := json.Marshal(targets)
+	if err != nil {
+		return nil, err
+	}
+	rootMeta, err := NewFileMeta(bytes.NewReader(rootJSON), "sha256")
+	if err != nil {
+		return nil, err
+	}
+	targetsMeta, err := NewFileMeta(bytes.NewReader(targetsJSON), "sha256")
+	if err != nil {
+		return nil, err
+	}
+	return &SignedSnapshot{
+		Signatures: make([]Signature, 0),
+		Signed: Snapshot{
+			Type:    TUFTypes["snapshot"],
+			Version: 0,
+			Expires: DefaultExpires("snapshot").String(),
+			Meta: Files{
+				ValidRoles["root"]:    rootMeta,
+				ValidRoles["targets"]: targetsMeta,
+			},
+		},
+	}, nil
+}
+
+func (sp *SignedSnapshot) hashForRole(role string) HexBytes {
+	return sp.Signed.Meta[role].Hashes["sha256"]
 }
 
 func (sp SignedSnapshot) ToSigned() (*Signed, error) {
@@ -38,6 +71,11 @@ func (sp SignedSnapshot) ToSigned() (*Signed, error) {
 		Signatures: sigs,
 		Signed:     signed,
 	}, nil
+}
+
+func (sp *SignedSnapshot) AddMeta(role string, meta FileMeta) {
+	sp.Signed.Meta[role] = meta
+	sp.Dirty = true
 }
 
 func SnapshotFromSigned(s *Signed) (*SignedSnapshot, error) {

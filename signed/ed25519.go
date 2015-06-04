@@ -68,3 +68,8 @@ func (trust *Ed25519) PublicKeys(keyIDs ...string) (map[string]*data.PublicKey, 
 	}
 	return k, nil
 }
+
+func (trust *Ed25519) CanSign(keyID string) bool {
+	_, ok := trust.keys[keyID]
+	return ok
+}

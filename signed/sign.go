@@ -39,16 +39,6 @@ func (signer *Signer) Sign(s *data.Signed, keys ...*data.PublicKey) error {
 	return nil
 }
 
-//func (signer *Signer) Marshal(v interface{}, keys ...*keys.PublicKey) (*data.Signed, error) {
-//	b, err := cjson.Marshal(v)
-//	if err != nil {
-//		return nil, err
-//	}
-//	s := &data.Signed{Signed: b}
-//	err = signer.Sign(s, keys...)
-//	return s, err // err may be nil but there's no point in checking, just return it
-//}
-
 func (signer *Signer) Create() (*data.PublicKey, error) {
 	return signer.service.Create()
 }

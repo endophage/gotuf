@@ -6,7 +6,6 @@ import (
 
 	"github.com/endophage/gotuf/data"
 	"github.com/endophage/gotuf/errors"
-	"github.com/endophage/gotuf/utils"
 )
 
 func MemoryStore(meta map[string]json.RawMessage, files map[string][]byte) LocalStore {
@@ -41,8 +40,8 @@ func (m *memoryStore) AddBlob(path string, meta data.FileMeta) {
 
 func (m *memoryStore) WalkStagedTargets(paths []string, targetsFn targetsWalkFunc) error {
 	if len(paths) == 0 {
-		for path, data := range m.files {
-			meta, err := utils.GenerateFileMeta(bytes.NewReader(data), "sha256")
+		for path, dat := range m.files {
+			meta, err := data.NewFileMeta(bytes.NewReader(dat), "sha256")
 			if err != nil {
 				return err
 			}
@@ -54,11 +53,11 @@ func (m *memoryStore) WalkStagedTargets(paths []string, targetsFn targetsWalkFun
 	}
 
 	for _, path := range paths {
-		data, ok := m.files[path]
+		dat, ok := m.files[path]
 		if !ok {
 			return errors.ErrFileNotFound{path}
 		}
-		meta, err := utils.GenerateFileMeta(bytes.NewReader(data), "sha256")
+		meta, err := data.NewFileMeta(bytes.NewReader(dat), "sha256")
 		if err != nil {
 			return err
 		}

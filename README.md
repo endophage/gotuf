@@ -20,3 +20,4 @@ TODOs:
 - [ ] Reasses organization of data types. Possibly consolidate a few things into the data package but break up package into a few more distinct files
 - [ ] Comprehensive test cases
 - [ ] Delete files no longer in use
+- [ ] Fix up errors. Some have to be instantiated, others don't, the inconsistency is annoying.

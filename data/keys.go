@@ -43,7 +43,8 @@ func (k TUFKey) Cipher() string {
 func (k *TUFKey) ID() string {
 	if k.id == "" {
 		logrus.Debug("Generating Key ID")
-		data, err := cjson.Marshal(&k)
+		pubK := NewTUFKey(k.Cipher(), k.Public(), "")
+		data, err := cjson.Marshal(&pubK)
 		if err != nil {
 			logrus.Error("Error generating key ID:", err)
 		}

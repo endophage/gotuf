@@ -11,6 +11,7 @@ import (
 type SignedTargets struct {
 	Signatures []Signature
 	Signed     Targets
+	Dirty      bool
 }
 
 type Targets struct {
@@ -19,6 +20,20 @@ type Targets struct {
 	Expires     string      `json:"expires"`
 	Targets     Files       `json:"targets"`
 	Delegations Delegations `json:"delegations,omitempty"`
+}
+
+func NewTargets() *SignedTargets {
+	return &SignedTargets{
+		Signatures: make([]Signature, 0),
+		Signed: Targets{
+			Type:        TUFTypes["targets"],
+			Version:     0,
+			Expires:     DefaultExpires("targets").String(),
+			Targets:     make(Files),
+			Delegations: *NewDelegations(),
+		},
+		Dirty: true,
+	}
 }
 
 // GetMeta attempts to find the targets entry for the path. It
@@ -58,6 +73,15 @@ func (t SignedTargets) GetDelegations(path string) []*Role {
 		//keysDB.AddRole(r)
 	}
 	return roles
+}
+
+func (t *SignedTargets) AddTarget(path string, meta FileMeta) {
+	t.Signed.Targets[path] = meta
+	t.Dirty = true
+}
+
+func (t *SignedTargets) AddDelegation(role *Role, keys []*TUFKey) error {
+	return nil
 }
 
 func (t SignedTargets) ToSigned() (*Signed, error) {

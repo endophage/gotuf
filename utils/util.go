@@ -2,14 +2,9 @@ package utils
 
 import (
 	"crypto/hmac"
-	"crypto/sha256"
-	"crypto/sha512"
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"hash"
-	"io"
-	"io/ioutil"
 	gopath "path"
 	"path/filepath"
 
@@ -71,37 +66,6 @@ func FileMetaEqual(actual data.FileMeta, expected data.FileMeta) error {
 		return ErrNoCommonHash{expected.Hashes, actual.Hashes}
 	}
 	return nil
-}
-
-const defaultHashAlgorithm = "sha512"
-
-func GenerateFileMeta(r io.Reader, hashAlgorithms ...string) (data.FileMeta, error) {
-	if len(hashAlgorithms) == 0 {
-		hashAlgorithms = []string{defaultHashAlgorithm}
-	}
-	hashes := make(map[string]hash.Hash, len(hashAlgorithms))
-	for _, hashAlgorithm := range hashAlgorithms {
-		var h hash.Hash
-		switch hashAlgorithm {
-		case "sha256":
-			h = sha256.New()
-		case "sha512":
-			h = sha512.New()
-		default:
-			return data.FileMeta{}, ErrUnknownHashAlgorithm{hashAlgorithm}
-		}
-		hashes[hashAlgorithm] = h
-		r = io.TeeReader(r, h)
-	}
-	n, err := io.Copy(ioutil.Discard, r)
-	if err != nil {
-		return data.FileMeta{}, err
-	}
-	m := data.FileMeta{Length: n, Hashes: make(data.Hashes, len(hashes))}
-	for hashAlgorithm, h := range hashes {
-		m.Hashes[hashAlgorithm] = h.Sum(nil)
-	}
-	return m, nil
 }
 
 func NormalizeTarget(path string) string {

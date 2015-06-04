@@ -86,7 +86,7 @@ func TestClientUpdate(t *testing.T) {
 
 	data.SetTUFTypes(
 		map[string]string{
-			"snapshot": "release",
+			"snapshot": "Release",
 		},
 	)
 	data.SetValidRoles(
@@ -103,7 +103,7 @@ func TestClientUpdate(t *testing.T) {
 	kdb := keys.NewDB()
 
 	logrus.SetLevel(logrus.DebugLevel)
-	repo := tuf.NewTufRepo(kdb)
+	repo := tuf.NewTufRepo(kdb, nil)
 	repo.SetRoot(s)
 	remote, err := store.NewHTTPStore(
 		"http://mirror1.poly.edu/test-pypi/",
