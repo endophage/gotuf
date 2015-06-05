@@ -1,8 +1,10 @@
+// tuf defines the core TUF logic around manipulating a repo.
 package tuf
 
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -11,6 +13,7 @@ import (
 	"github.com/endophage/gotuf/errors"
 	"github.com/endophage/gotuf/keys"
 	"github.com/endophage/gotuf/signed"
+	"github.com/endophage/gotuf/utils"
 )
 
 type ErrSigVerifyFail struct{}
@@ -31,8 +34,11 @@ func (e ErrLocalRootExpired) Error() string {
 	return "Error: Local Root Has Expired"
 }
 
-// TufRepo is an in memory representation of the Signed section of all
-// the TUF files.
+// TufRepo is an in memory representation of the TUF Repo.
+// It operates at the data.Signed level, accepting and producing
+// data.Signed objects. Users of a TufRepo are responsible for
+// fetching raw JSON and using the Set* functions to populate
+// the TufRepo instance.
 type TufRepo struct {
 	Root      *data.SignedRoot
 	Targets   map[string]*data.SignedTargets
@@ -42,6 +48,8 @@ type TufRepo struct {
 	signer    *signed.Signer
 }
 
+// NewTufRepo initializes a TufRepo instance with a keysDB and a signer.
+// If the TufRepo will only be used for reading, the signer should be nil.
 func NewTufRepo(keysDB *keys.KeyDB, signer *signed.Signer) *TufRepo {
 	repo := &TufRepo{
 		Targets: make(map[string]*data.SignedTargets),
@@ -51,15 +59,66 @@ func NewTufRepo(keysDB *keys.KeyDB, signer *signed.Signer) *TufRepo {
 	return repo
 }
 
+// AddKeys adds the provided keys to the given role. If the role is
+// a delegated targets role, the appropriate targets file that contains
+// the delegation will be found and modified.
 func (tr *TufRepo) AddKeys(role string, keys ...data.Key) error {
 	return nil
 }
 
-func (tr *TufRepo) RemoveKeys(role string, keyID ...string) error {
+// RemoveKeys deletes the keyIDs provided from the given role. If
+// no other roles in the file reference the removed IDs, the key
+// entries will also be removed.
+func (tr *TufRepo) RemoveKeys(role string, keyIDs ...string) error {
 	return nil
 }
 
-func (tr *TufRepo) CreateDelegation(name string, keys []data.Key, role *data.Role) error {
+// UpdateDelegations updates the appropriate delegations, either adding
+// a new delegation or updating an existing one. If keys are
+// provided, the IDs will be added to the role (if they do not exist
+// there already), and the keys will be added to the targets file.
+// The "before" argument specifies another role which this new role
+// will be added in front of (i.e. higher priority) in the delegation list.
+// An empty before string indicates to add the role to the end of the
+// delegation list.
+// A new, empty, targets file will be created for the new role.
+func (tr *TufRepo) UpdateDelegations(role *data.Role, keys []data.Key, before string) error {
+	if !role.IsDelegation() || !role.IsValid() {
+		return errors.ErrInvalidRole{}
+	}
+	parent := filepath.Dir(role.Name)
+	p, ok := tr.Targets[parent]
+	if !ok {
+		return errors.ErrInvalidRole{}
+	}
+	for _, k := range keys {
+		if !utils.StrSliceContains(role.KeyIDs, k.ID()) {
+			role.KeyIDs = append(role.KeyIDs, k.ID())
+		}
+		key := data.NewPublicKey(k.Cipher(), k.Public())
+		p.Signed.Delegations.Keys[k.ID()] = &key.TUFKey
+		tr.keysDB.AddKey(key)
+	}
+
+	i := -1
+	var r *data.Role
+	for i, r = range p.Signed.Delegations.Roles {
+		if r.Name == role.Name {
+			break
+		}
+	}
+	if i >= 0 {
+		p.Signed.Delegations.Roles[i] = role
+	} else {
+		p.Signed.Delegations.Roles = append(p.Signed.Delegations.Roles, role)
+	}
+	p.Dirty = true
+
+	roleTargets := data.NewTargets()
+	tr.Targets[role.Name] = roleTargets
+
+	tr.keysDB.AddRole(role)
+
 	return nil
 }
 
@@ -121,6 +180,9 @@ func (tr *TufRepo) InitRepo(consistent bool) error {
 	return nil
 }
 
+// SetRoot parses the Signed object into a SignedRoot object, sets
+// the keys and roles in the KeyDB, and sets the TufRepo.Root field
+// to the SignedRoot object.
 func (tr *TufRepo) SetRoot(s *data.Signed) error {
 	r, err := data.RootFromSigned(s)
 	if err != nil {
@@ -151,6 +213,8 @@ func (tr *TufRepo) SetRoot(s *data.Signed) error {
 	return nil
 }
 
+// SetTimestamp parses the Signed object into a SignedTimestamp object
+// and sets the TufRepo.Timestamp field.
 func (tr *TufRepo) SetTimestamp(s *data.Signed) error {
 	ts, err := data.TimestampFromSigned(s)
 	if err != nil {
@@ -160,6 +224,8 @@ func (tr *TufRepo) SetTimestamp(s *data.Signed) error {
 	return nil
 }
 
+// SetSnapshot parses the Signed object into a SignedSnapshots object
+// and sets the TufRepo.Snapshot field.
 func (tr *TufRepo) SetSnapshot(s *data.Signed) error {
 	snap, err := data.SnapshotFromSigned(s)
 	if err != nil {
@@ -170,6 +236,9 @@ func (tr *TufRepo) SetSnapshot(s *data.Signed) error {
 	return nil
 }
 
+// SetTargets parses the Signed object into a SignedTargets object,
+// reads the delegated roles and keys into the KeyDB, and sets the
+// SignedTargets object agaist the role in the TufRepo.Targets map.
 func (tr *TufRepo) SetTargets(role string, s *data.Signed) error {
 	t, err := data.TargetsFromSigned(s)
 	if err != nil {
@@ -185,37 +254,62 @@ func (tr *TufRepo) SetTargets(role string, s *data.Signed) error {
 	return nil
 }
 
-func (tr *TufRepo) WalkTargets(role, path string) *data.FileMeta {
-	pathDigest := sha256.Sum256([]byte(path))
-	pathHex := hex.EncodeToString(pathDigest[:])
-	logrus.Debug("Path: ", path, "\nPath SHA256 Hex: ", pathHex)
-	var walkTargets func(string) *data.FileMeta
-	walkTargets = func(role string) *data.FileMeta {
-		t, ok := tr.Targets[role]
-		if !ok {
-			// role not found
-			return nil
-		}
+// TargetMeta returns the FileMeta entry for the given path in the
+// targets file associated with the given role. This may be nil if
+// the target isn't found in the targets file.
+func (tr TufRepo) TargetMeta(role, path string) *data.FileMeta {
+	if t, ok := tr.Targets[role]; ok {
 		if m, ok := t.Signed.Targets[path]; ok {
 			return &m
 		}
-		// Depth first search of delegations:
+	}
+	return nil
+}
+
+// TargetDelegations returns a slice of Roles that are valid publishers
+// for the target path provided.
+func (tr TufRepo) TargetDelegations(role, path, pathHex string) []*data.Role {
+	if pathHex == "" {
+		pathDigest := sha256.Sum256([]byte(path))
+		pathHex = hex.EncodeToString(pathDigest[:])
+	}
+	roles := make([]*data.Role, 0)
+	if t, ok := tr.Targets[role]; ok {
 		for _, r := range t.Signed.Delegations.Roles {
 			if r.CheckPrefixes(pathHex) || r.CheckPaths(path) {
-				logrus.Debug("Found delegation ", r.Name, " for path ", path)
-				if m := walkTargets(r.Name); m != nil {
-					return m
-				}
+				roles = append(roles, r)
+			}
+		}
+	}
+	return roles
+}
+
+// FindTarget attempts to find the target represented by the given
+// path by starting at the top targets file and traversing
+// appropriate delegations until the first entry is found or it
+// runs out of locations to search.
+// N.B. Multiple entries may exist in different delegated roles
+//      for the same target. Only the first one encountered is returned.
+func (tr TufRepo) FindTarget(path string) *data.FileMeta {
+	pathDigest := sha256.Sum256([]byte(path))
+	pathHex := hex.EncodeToString(pathDigest[:])
+
+	var walkTargets func(role string) *data.FileMeta
+	walkTargets = func(role string) *data.FileMeta {
+		if m := tr.TargetMeta(role, path); m != nil {
+			return m
+		}
+		// Depth first search of delegations based on order
+		// as presented in current targets file for role:
+		for _, r := range tr.TargetDelegations(role, path, pathHex) {
+			if m := walkTargets(r.Name); m != nil {
+				return m
 			}
 		}
 		return nil
 	}
 
-	return walkTargets(role)
-}
-
-func (tr TufRepo) FindTarget(path string) *data.FileMeta {
-	return tr.WalkTargets("targets", path)
+	return walkTargets("targets")
 }
 
 // AddTargetsToRole will attempt to add the given targets specifically to

@@ -103,6 +103,10 @@ func TestClientUpdate(t *testing.T) {
 	kdb := keys.NewDB()
 
 	logrus.SetLevel(logrus.DebugLevel)
+
+	// Being able to set the second argument, signer, to nil is a great
+	// test as we shouldn't need to instantiate a signer just for reading
+	// a repo.
 	repo := tuf.NewTufRepo(kdb, nil)
 	repo.SetRoot(s)
 	remote, err := store.NewHTTPStore(

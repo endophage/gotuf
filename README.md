@@ -21,3 +21,4 @@ TODOs:
 - [ ] Comprehensive test cases
 - [ ] Delete files no longer in use
 - [ ] Fix up errors. Some have to be instantiated, others don't, the inconsistency is annoying.
+- [ ] Bump version numbers in meta files

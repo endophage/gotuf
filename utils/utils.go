@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/endophage/gotuf/data"
 )
@@ -33,4 +34,24 @@ func ValidateTarget(r io.Reader, m *data.FileMeta) error {
 		return fmt.Errorf("Hash of downloaded target did not match targets entry.\nExpected: %x\nReceived: %x\n", m.Hashes["sha256"], hashDigest)
 	}
 	return nil
+}
+
+func StrSliceContains(ss []string, s string) bool {
+	for _, v := range ss {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
+func StrSliceContainsI(ss []string, s string) bool {
+	s = strings.ToLower(s)
+	for _, v := range ss {
+		v = strings.ToLower(v)
+		if v == s {
+			return true
+		}
+	}
+	return false
 }

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"os"
+	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/endophage/gotuf/data"
@@ -11,9 +13,7 @@ import (
 	"github.com/endophage/gotuf/signed"
 )
 
-func TestInitRepo(t *testing.T) {
-	ed25519 := signed.NewEd25519()
-	signer := signed.NewSigner(ed25519)
+func initRepo(t *testing.T, signer *signed.Signer, keyDB *keys.KeyDB) *TufRepo {
 
 	rootKey, err := signer.Create()
 	if err != nil {
@@ -32,7 +32,6 @@ func TestInitRepo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	keyDB := keys.NewDB()
 	keyDB.AddKey(rootKey)
 	keyDB.AddKey(targetsKey)
 	keyDB.AddKey(snapshotKey)
@@ -77,37 +76,93 @@ func TestInitRepo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	return repo
+}
 
-	err = os.MkdirAll("/tmp/tufrepo", 0755)
+func writeRepo(t *testing.T, dir string, repo *TufRepo) {
+	//err := os.Remove(dir)
+	//if err != nil {
+	//	t.Fatal(err)
+	//}
+	err := os.MkdirAll(dir, 0755)
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	signedRoot, err := repo.SignRoot(data.DefaultExpires("root"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	rootJSON, _ := json.Marshal(signedRoot)
-	ioutil.WriteFile("/tmp/tufrepo/root.json", rootJSON, 0755)
+	ioutil.WriteFile(dir+"/root.json", rootJSON, 0755)
 
-	signedTargets, err := repo.SignTargets("targets", data.DefaultExpires("targets"))
-	if err != nil {
-		t.Fatal(err)
+	for r, _ := range repo.Targets {
+		signedTargets, err := repo.SignTargets(r, data.DefaultExpires("targets"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		targetsJSON, _ := json.Marshal(signedTargets)
+		p := path.Join(dir, r+".json")
+		parentDir := filepath.Dir(p)
+		os.MkdirAll(parentDir, 0755)
+		ioutil.WriteFile(p, targetsJSON, 0755)
 	}
-	targetsJSON, _ := json.Marshal(signedTargets)
-	ioutil.WriteFile("/tmp/tufrepo/targets.json", targetsJSON, 0755)
 
 	signedSnapshot, err := repo.SignSnapshot(data.DefaultExpires("snapshot"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	snapshotJSON, _ := json.Marshal(signedSnapshot)
-	ioutil.WriteFile("/tmp/tufrepo/snapshot.json", snapshotJSON, 0755)
+	ioutil.WriteFile(dir+"/snapshot.json", snapshotJSON, 0755)
 
 	signedTimestamp, err := repo.SignTimestamp(data.DefaultExpires("timestamp"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	timestampJSON, _ := json.Marshal(signedTimestamp)
-	ioutil.WriteFile("/tmp/tufrepo/timestamp.json", timestampJSON, 0755)
+	ioutil.WriteFile(dir+"/timestamp.json", timestampJSON, 0755)
+}
+
+func TestInitRepo(t *testing.T) {
+	ed25519 := signed.NewEd25519()
+	signer := signed.NewSigner(ed25519)
+	keyDB := keys.NewDB()
+	repo := initRepo(t, signer, keyDB)
+	writeRepo(t, "/tmp/tufrepo", repo)
+}
+
+func TestUpdateDelegations(t *testing.T) {
+	ed25519 := signed.NewEd25519()
+	signer := signed.NewSigner(ed25519)
+	keyDB := keys.NewDB()
+	repo := initRepo(t, signer, keyDB)
+
+	testKey, err := signer.Create()
+	if err != nil {
+		t.Fatal(err)
+	}
+	role, err := data.NewRole("targets/test", 1, []string{testKey.ID()}, []string{"test"}, []string{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = repo.UpdateDelegations(role, []data.Key{testKey}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testDeepKey, err := signer.Create()
+	if err != nil {
+		t.Fatal(err)
+	}
+	roleDeep, err := data.NewRole("targets/test/deep", 1, []string{testDeepKey.ID()}, []string{"test/deep"}, []string{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = repo.UpdateDelegations(roleDeep, []data.Key{testDeepKey}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	writeRepo(t, "/tmp/tufdelegation", repo)
 }

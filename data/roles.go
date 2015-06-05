@@ -110,3 +110,8 @@ func (r Role) CheckPrefixes(hash string) bool {
 	}
 	return false
 }
+
+func (r Role) IsDelegation() bool {
+	targetsBase := fmt.Sprintf("%s/", ValidRoles["targets"])
+	return strings.HasPrefix(r.Name, targetsBase)
+}
