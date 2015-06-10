@@ -4,6 +4,7 @@ package tuf
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"time"
@@ -34,6 +35,14 @@ func (e ErrLocalRootExpired) Error() string {
 	return "Error: Local Root Has Expired"
 }
 
+type ErrNotLoaded struct {
+	role string
+}
+
+func (err *ErrNotLoaded) Error() string {
+	return fmt.Sprintf("%s role has not been loaded", err.role)
+}
+
 // TufRepo is an in memory representation of the TUF Repo.
 // It operates at the data.Signed level, accepting and producing
 // data.Signed objects. Users of a TufRepo are responsible for
@@ -59,17 +68,57 @@ func NewTufRepo(keysDB *keys.KeyDB, signer *signed.Signer) *TufRepo {
 	return repo
 }
 
-// AddKeys adds the provided keys to the given role. If the role is
-// a delegated targets role, the appropriate targets file that contains
-// the delegation will be found and modified.
-func (tr *TufRepo) AddKeys(role string, keys ...data.Key) error {
+// AddBaseKeys is used to add keys to the role in root.json
+func (tr *TufRepo) AddBaseKeys(role string, keys ...data.Key) error {
+	if tr.Root == nil {
+		return &ErrNotLoaded{role: "root"}
+	}
+	for _, k := range keys {
+		key := data.NewPublicKey(k.Cipher(), k.Public())
+		tr.Root.Signed.Keys[key.ID()] = &key.TUFKey
+		tr.keysDB.AddKey(key)
+		tr.Root.Signed.Roles[role].KeyIDs = append(tr.Root.Signed.Roles[role].KeyIDs, key.ID())
+	}
+	tr.Root.Dirty = true
 	return nil
+
 }
 
-// RemoveKeys deletes the keyIDs provided from the given role. If
-// no other roles in the file reference the removed IDs, the key
-// entries will also be removed.
-func (tr *TufRepo) RemoveKeys(role string, keyIDs ...string) error {
+// RemoveKeys is used to remove keys from the roles in root.json
+func (tr *TufRepo) RemoveBaseKeys(role string, keyIDs ...string) error {
+	if tr.Root == nil {
+		return &ErrNotLoaded{role: "root"}
+	}
+	keep := make([]string, 0)
+	toDelete := make(map[string]struct{})
+	// remove keys from specified role
+	for _, k := range keyIDs {
+		toDelete[k] = struct{}{}
+		for _, rk := range tr.Root.Signed.Roles[role].KeyIDs {
+			if k != rk {
+				keep = append(keep, rk)
+			}
+		}
+	}
+	tr.Root.Signed.Roles[role].KeyIDs = keep
+
+	// determine which keys are no longer in use by any roles
+	for roleName, r := range tr.Root.Signed.Roles {
+		if roleName == role {
+			continue
+		}
+		for _, rk := range r.KeyIDs {
+			if _, ok := toDelete[rk]; ok {
+				delete(toDelete, rk)
+			}
+		}
+	}
+
+	// remove keys no longer in use by any roles
+	for k, _ := range toDelete {
+		delete(tr.Root.Signed.Keys, k)
+	}
+	tr.Root.Dirty = true
 	return nil
 }
 
@@ -92,11 +141,11 @@ func (tr *TufRepo) UpdateDelegations(role *data.Role, keys []data.Key, before st
 		return errors.ErrInvalidRole{}
 	}
 	for _, k := range keys {
-		if !utils.StrSliceContains(role.KeyIDs, k.ID()) {
-			role.KeyIDs = append(role.KeyIDs, k.ID())
-		}
 		key := data.NewPublicKey(k.Cipher(), k.Public())
-		p.Signed.Delegations.Keys[k.ID()] = &key.TUFKey
+		if !utils.StrSliceContains(role.KeyIDs, key.ID()) {
+			role.KeyIDs = append(role.KeyIDs, key.ID())
+		}
+		p.Signed.Delegations.Keys[key.ID()] = &key.TUFKey
 		tr.keysDB.AddKey(key)
 	}
 
@@ -312,10 +361,29 @@ func (tr TufRepo) FindTarget(path string) *data.FileMeta {
 	return walkTargets("targets")
 }
 
-// AddTargetsToRole will attempt to add the given targets specifically to
+// AddTargets will attempt to add the given targets specifically to
 // the directed role. If the user does not have the signing keys for the role
 // the function will return an error and the full slice of targets.
-func (tr *TufRepo) AddTargets(role string, targets *data.Files) (*data.Files, error) {
+func (tr *TufRepo) AddTargets(role string, targets data.Files) (data.Files, error) {
+	t, ok := tr.Targets[role]
+	if !ok {
+		return targets, errors.ErrInvalidRole{role}
+	}
+	invalid := make(data.Files)
+	for path, target := range targets {
+		pathDigest := sha256.Sum256([]byte(path))
+		pathHex := hex.EncodeToString(pathDigest[:])
+		r := tr.keysDB.GetRole(role)
+		if r.CheckPaths(path) || r.CheckPrefixes(pathHex) {
+			t.Signed.Targets[path] = target
+		} else {
+			invalid[path] = target
+		}
+	}
+	t.Dirty = true
+	if len(invalid) > 0 {
+		return invalid, fmt.Errorf("Could not add all targets")
+	}
 	return nil, nil
 }
 

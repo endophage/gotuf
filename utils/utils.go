@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/endophage/gotuf/data"
@@ -54,4 +55,9 @@ func StrSliceContainsI(ss []string, s string) bool {
 		}
 	}
 	return false
+}
+
+func FileExists(path string) bool {
+	_, err := os.Stat(path)
+	return os.IsNotExist(err)
 }
