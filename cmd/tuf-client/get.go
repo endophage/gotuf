@@ -6,7 +6,7 @@ import (
 	"os"
 
 	tuf "github.com/endophage/gotuf/client"
-	"github.com/endophage/gotuf/util"
+	"github.com/endophage/gotuf/utils"
 	"github.com/flynn/go-docopt"
 )
 
@@ -34,7 +34,7 @@ func cmdGet(args *docopt.Args, client *tuf.Client) error {
 	if _, err := client.Update(); err != nil && !tuf.IsLatestSnapshot(err) {
 		return err
 	}
-	target := util.NormalizeTarget(args.String["<target>"])
+	target := utils.NormalizeTarget(args.String["<target>"])
 	file, err := ioutil.TempFile("", "gotuf")
 	if err != nil {
 		return err

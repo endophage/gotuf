@@ -75,7 +75,7 @@ func (tr *TufRepo) AddBaseKeys(role string, keys ...data.Key) error {
 	}
 	for _, k := range keys {
 		key := data.NewPublicKey(k.Cipher(), k.Public())
-		tr.Root.Signed.Keys[key.ID()] = &key
+		tr.Root.Signed.Keys[key.ID()] = key
 		tr.keysDB.AddKey(key)
 		tr.Root.Signed.Roles[role].KeyIDs = append(tr.Root.Signed.Roles[role].KeyIDs, key.ID())
 	}
@@ -145,7 +145,7 @@ func (tr *TufRepo) UpdateDelegations(role *data.Role, keys []data.Key, before st
 		if !utils.StrSliceContains(role.KeyIDs, key.ID()) {
 			role.KeyIDs = append(role.KeyIDs, key.ID())
 		}
-		p.Signed.Delegations.Keys[key.ID()] = &key
+		p.Signed.Delegations.Keys[key.ID()] = key
 		tr.keysDB.AddKey(key)
 	}
 
@@ -238,7 +238,7 @@ func (tr *TufRepo) SetRoot(s *data.Signed) error {
 		return err
 	}
 	for kid, key := range r.Signed.Keys {
-		tr.keysDB.AddKey(&data.PublicKey{TUFKey: *key})
+		tr.keysDB.AddKey(key)
 		logrus.Debug("Given Key ID:", kid, "\nGenerated Key ID:", key.ID())
 	}
 	for roleName, role := range r.Signed.Roles {
@@ -294,7 +294,7 @@ func (tr *TufRepo) SetTargets(role string, s *data.Signed) error {
 		return err
 	}
 	for _, k := range t.Signed.Delegations.Keys {
-		tr.keysDB.AddKey(&data.PublicKey{TUFKey: *k})
+		tr.keysDB.AddKey(k)
 	}
 	for _, r := range t.Signed.Delegations.Roles {
 		tr.keysDB.AddRole(r)

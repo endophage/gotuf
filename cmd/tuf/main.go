@@ -17,7 +17,7 @@ import (
 	"github.com/endophage/gotuf"
 	"github.com/endophage/gotuf/signed"
 	"github.com/endophage/gotuf/store"
-	"github.com/endophage/gotuf/util"
+	"github.com/endophage/gotuf/utils"
 )
 
 func main() {
@@ -106,7 +106,7 @@ func runCommand(name string, args []string, dir string, insecure bool) error {
 		return err
 	}
 
-	var p util.PassphraseFunc
+	var p utils.PassphraseFunc
 	if !insecure {
 		p = getPassphrase
 	}

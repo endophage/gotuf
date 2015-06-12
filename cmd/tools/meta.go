@@ -7,8 +7,8 @@ import (
 	"os"
 
 	"github.com/endophage/gotuf"
+	"github.com/endophage/gotuf/data"
 	"github.com/flynn/go-docopt"
-	"github.com/endophage/gotuf/util"
 )
 
 func init() {
@@ -24,7 +24,7 @@ func cmdMeta(args *docopt.Args, repo *tuf.Repo) error {
 	paths := args.All["<path>"].([]string)
 	for _, file := range paths {
 		reader, _ := os.Open(file)
-		meta, _ := util.GenerateFileMeta(reader, "sha256")
+		meta, _ := data.NewFileMeta(reader, "sha256")
 		jsonBytes, err := json.Marshal(meta)
 		if err != nil {
 			return err

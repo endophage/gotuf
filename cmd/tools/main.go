@@ -7,7 +7,7 @@ import (
 	"github.com/endophage/gotuf"
 	"github.com/endophage/gotuf/signed"
 	"github.com/endophage/gotuf/store"
-	"github.com/endophage/gotuf/testutil"
+	"github.com/endophage/gotuf/testutils"
 	"github.com/flynn/go-docopt"
 )
 
@@ -73,7 +73,7 @@ func runCommand(name string, args []string) error {
 		return err
 	}
 
-	db := testutil.GetSqliteDB()
+	db := testutils.GetSqliteDB()
 	local := store.DBStore(db, "")
 	signer := signed.Ed25519{}
 	repo, err := tuf.NewRepo(&signer, local, "sha256")
