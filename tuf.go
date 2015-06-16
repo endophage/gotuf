@@ -2,8 +2,10 @@
 package tuf
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -80,6 +82,11 @@ func (tr *TufRepo) AddBaseKeys(role string, keys ...data.Key) error {
 		tr.Root.Signed.Roles[role].KeyIDs = append(tr.Root.Signed.Roles[role].KeyIDs, key.ID())
 	}
 	tr.Root.Dirty = true
+	signedRoot, err := tr.SignRoot(data.DefaultExpires("root"))
+	err = tr.UpdateSnapshot("root", signedRoot)
+	if err != nil {
+		return err
+	}
 	return nil
 
 }
@@ -119,6 +126,11 @@ func (tr *TufRepo) RemoveBaseKeys(role string, keyIDs ...string) error {
 		delete(tr.Root.Signed.Keys, k)
 	}
 	tr.Root.Dirty = true
+	signedRoot, err := tr.SignRoot(data.DefaultExpires("root"))
+	err = tr.UpdateSnapshot("root", signedRoot)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -165,6 +177,23 @@ func (tr *TufRepo) UpdateDelegations(role *data.Role, keys []data.Key, before st
 
 	roleTargets := data.NewTargets()
 	tr.Targets[role.Name] = roleTargets
+
+	signedParent, err := tr.SignTargets(parent, data.DefaultExpires("targets"))
+	if err != nil {
+		return err
+	}
+	err = tr.UpdateSnapshot(role.Name, signedParent)
+	if err != nil {
+		return err
+	}
+	signedTargets, err := tr.SignTargets(role.Name, data.DefaultExpires("targets"))
+	if err != nil {
+		return err
+	}
+	err = tr.UpdateSnapshot(role.Name, signedTargets)
+	if err != nil {
+		return err
+	}
 
 	tr.keysDB.AddRole(role)
 
@@ -381,10 +410,31 @@ func (tr *TufRepo) AddTargets(role string, targets data.Files) (data.Files, erro
 		}
 	}
 	t.Dirty = true
+	signedTargets, err := tr.SignTargets(role, data.DefaultExpires("targets"))
+	if err != nil {
+		return invalid, err
+	}
+	err = tr.UpdateSnapshot(role, signedTargets)
+	if err != nil {
+		return invalid, err
+	}
 	if len(invalid) > 0 {
 		return invalid, fmt.Errorf("Could not add all targets")
 	}
 	return nil, nil
+}
+
+func (tr *TufRepo) UpdateSnapshot(role string, s *data.Signed) error {
+	jsonData, err := json.Marshal(s)
+	if err != nil {
+		return err
+	}
+	meta, err := data.NewFileMeta(bytes.NewReader(jsonData), "sha256")
+	if err != nil {
+		return err
+	}
+	tr.Snapshot.Signed.Meta[role] = meta
+	return nil
 }
 
 func (tr *TufRepo) SignRoot(expires time.Time) (*data.Signed, error) {
