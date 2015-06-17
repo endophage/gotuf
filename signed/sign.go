@@ -43,6 +43,6 @@ func (signer *Signer) Create() (*data.PublicKey, error) {
 	return signer.service.Create()
 }
 
-func (signer *Signer) PublicKeys(keyIDs ...string) (map[string]*data.PublicKey, error) {
-	return signer.service.PublicKeys(keyIDs...)
-}
+//func (signer *Signer) PublicKeys(keyIDs ...string) (map[string]*data.PublicKey, error) {
+//	return signer.service.PublicKeys(keyIDs...)
+//}
