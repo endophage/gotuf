@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/Sirupsen/logrus"
@@ -244,8 +243,7 @@ func (tr *TufRepo) SetRoot(s *data.Signed) error {
 		logrus.Debug("Given Key ID:", kid, "\nGenerated Key ID:", key.ID())
 	}
 	for roleName, role := range r.Signed.Roles {
-		roleName = strings.TrimSuffix(roleName, ".txt")
-		rol, err := data.NewRole(
+		baseRole, err := data.NewRole(
 			roleName,
 			role.Threshold,
 			role.KeyIDs,
@@ -255,7 +253,7 @@ func (tr *TufRepo) SetRoot(s *data.Signed) error {
 		if err != nil {
 			return err
 		}
-		err = tr.keysDB.AddRole(rol)
+		err = tr.keysDB.AddRole(baseRole)
 		if err != nil {
 			return err
 		}
@@ -376,7 +374,7 @@ func (tr *TufRepo) AddTargets(role string, targets data.Files) (data.Files, erro
 		pathDigest := sha256.Sum256([]byte(path))
 		pathHex := hex.EncodeToString(pathDigest[:])
 		r := tr.keysDB.GetRole(role)
-		if r.CheckPaths(path) || r.CheckPrefixes(pathHex) {
+		if role == data.ValidRoles["targets"] || (r.CheckPaths(path) || r.CheckPrefixes(pathHex)) {
 			t.Signed.Targets[path] = target
 		} else {
 			invalid[path] = target
@@ -418,6 +416,7 @@ func (tr *TufRepo) UpdateTimestamp(s *data.Signed) error {
 }
 
 func (tr *TufRepo) SignRoot(expires time.Time) (*data.Signed, error) {
+	logrus.Debug("SignRoot")
 	signed, err := tr.Root.ToSigned()
 	if err != nil {
 		return nil, err
@@ -432,22 +431,29 @@ func (tr *TufRepo) SignRoot(expires time.Time) (*data.Signed, error) {
 }
 
 func (tr *TufRepo) SignTargets(role string, expires time.Time) (*data.Signed, error) {
+	logrus.Debug("SignTargets")
 	signed, err := tr.Targets[role].ToSigned()
 	if err != nil {
+		logrus.Debug("errored getting targets data.Signed object")
 		return nil, err
 	}
+	logrus.Debug("Got targets data.Signed object")
 	if tr.Targets[role].Dirty {
 		targets := tr.keysDB.GetRole(role)
+		logrus.Debug("About to sign ", role)
 		signed, err = tr.sign(signed, *targets)
 		if err != nil {
+			logrus.Debug("errored signing ", role)
 			return nil, err
 		}
+		logrus.Debug("success signing ", role)
 		tr.Targets[role].Signatures = signed.Signatures
 	}
 	return signed, nil
 }
 
 func (tr *TufRepo) SignSnapshot(expires time.Time) (*data.Signed, error) {
+	logrus.Debug("SignSnapshot")
 	if tr.Root.Dirty {
 		signedRoot, err := tr.SignRoot(data.DefaultExpires("root"))
 		if err != nil {
@@ -489,6 +495,7 @@ func (tr *TufRepo) SignSnapshot(expires time.Time) (*data.Signed, error) {
 }
 
 func (tr *TufRepo) SignTimestamp(expires time.Time) (*data.Signed, error) {
+	logrus.Debug("SignTimestamp")
 	if tr.Snapshot.Dirty {
 		signedSnapshot, err := tr.SignSnapshot(data.DefaultExpires("snapshot"))
 		if err != nil {

@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"crypto/sha256"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,11 +15,19 @@ import (
 )
 
 func Download(url url.URL) (*http.Response, error) {
-	return http.Get(url.String())
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: tr}
+	return client.Get(url.String())
 }
 
 func Upload(url string, body io.Reader) (*http.Response, error) {
-	return http.Post(url, "application/json", body)
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: tr}
+	return client.Post(url, "application/json", body)
 }
 
 func ValidateTarget(r io.Reader, m *data.FileMeta) error {
