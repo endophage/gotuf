@@ -177,6 +177,22 @@ func (tr *TufRepo) UpdateDelegations(role *data.Role, keys []data.Key, before st
 // also relies on the keysDB having already been populated with the keys and
 // roles.
 func (tr *TufRepo) InitRepo(consistent bool) error {
+	err := tr.InitRoot(consistent)
+	if err != nil {
+		return err
+	}
+	tr.InitTargets()
+	if err != nil {
+		return err
+	}
+	tr.InitSnapshot()
+	if err != nil {
+		return err
+	}
+	return tr.InitTimestamp()
+}
+
+func (tr *TufRepo) InitRoot(consistent bool) error {
 	rootRoles := make(map[string]*data.RootRole)
 	rootKeys := make(map[string]*data.PublicKey)
 	for _, r := range data.ValidRoles {
@@ -199,10 +215,16 @@ func (tr *TufRepo) InitRepo(consistent bool) error {
 		return err
 	}
 	tr.Root = root
+	return nil
+}
 
+func (tr *TufRepo) InitTargets() error {
 	targets := data.NewTargets()
 	tr.Targets[data.ValidRoles["targets"]] = targets
+	return nil
+}
 
+func (tr *TufRepo) InitSnapshot() error {
 	signedRoot, err := tr.SignRoot(data.DefaultExpires("root"))
 	if err != nil {
 		return err
@@ -216,7 +238,10 @@ func (tr *TufRepo) InitRepo(consistent bool) error {
 		return err
 	}
 	tr.Snapshot = snapshot
+	return nil
+}
 
+func (tr *TufRepo) InitTimestamp() error {
 	signedSnapshot, err := tr.SignSnapshot(data.DefaultExpires("snapshot"))
 	if err != nil {
 		return err
