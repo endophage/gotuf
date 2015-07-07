@@ -225,11 +225,11 @@ func (tr *TufRepo) InitTargets() error {
 }
 
 func (tr *TufRepo) InitSnapshot() error {
-	signedRoot, err := tr.SignRoot(data.DefaultExpires("root"))
+	signedRoot, err := tr.SignRoot(data.DefaultExpires("root"), nil)
 	if err != nil {
 		return err
 	}
-	signedTargets, err := tr.SignTargets("targets", data.DefaultExpires("targets"))
+	signedTargets, err := tr.SignTargets("targets", data.DefaultExpires("targets"), nil)
 	if err != nil {
 		return err
 	}
@@ -242,7 +242,7 @@ func (tr *TufRepo) InitSnapshot() error {
 }
 
 func (tr *TufRepo) InitTimestamp() error {
-	signedSnapshot, err := tr.SignSnapshot(data.DefaultExpires("snapshot"))
+	signedSnapshot, err := tr.SignSnapshot(data.DefaultExpires("snapshot"), nil)
 	if err != nil {
 		return err
 	}
@@ -453,7 +453,7 @@ func (tr *TufRepo) UpdateTimestamp(s *data.Signed) error {
 	return nil
 }
 
-func (tr *TufRepo) SignRoot(expires time.Time) (*data.Signed, error) {
+func (tr *TufRepo) SignRoot(expires time.Time, signer *signed.Signer) (*data.Signed, error) {
 	logrus.Debug("SignRoot")
 	if tr.Root.Dirty {
 		tr.Root.Signed.Version++
@@ -463,7 +463,7 @@ func (tr *TufRepo) SignRoot(expires time.Time) (*data.Signed, error) {
 	if err != nil {
 		return nil, err
 	}
-	signed, err = tr.sign(signed, *root)
+	signed, err = tr.sign(signed, *root, signer)
 	if err != nil {
 		return nil, err
 	}
@@ -471,7 +471,7 @@ func (tr *TufRepo) SignRoot(expires time.Time) (*data.Signed, error) {
 	return signed, nil
 }
 
-func (tr *TufRepo) SignTargets(role string, expires time.Time) (*data.Signed, error) {
+func (tr *TufRepo) SignTargets(role string, expires time.Time, signer *signed.Signer) (*data.Signed, error) {
 	logrus.Debug("SignTargets")
 	logrus.Debug("Got targets data.Signed object")
 	if tr.Targets[role].Dirty {
@@ -483,7 +483,7 @@ func (tr *TufRepo) SignTargets(role string, expires time.Time) (*data.Signed, er
 		}
 		targets := tr.keysDB.GetRole(role)
 		logrus.Debug("About to sign ", role)
-		signed, err = tr.sign(signed, *targets)
+		signed, err = tr.sign(signed, *targets, signer)
 		if err != nil {
 			logrus.Debug("errored signing ", role)
 			return nil, err
@@ -501,10 +501,10 @@ func (tr *TufRepo) SignTargets(role string, expires time.Time) (*data.Signed, er
 	}
 }
 
-func (tr *TufRepo) SignSnapshot(expires time.Time) (*data.Signed, error) {
+func (tr *TufRepo) SignSnapshot(expires time.Time, signer *signed.Signer) (*data.Signed, error) {
 	logrus.Debug("SignSnapshot")
 	if tr.Root.Dirty {
-		signedRoot, err := tr.SignRoot(data.DefaultExpires("root"))
+		signedRoot, err := tr.SignRoot(data.DefaultExpires("root"), signer)
 		if err != nil {
 			return nil, err
 		}
@@ -518,7 +518,7 @@ func (tr *TufRepo) SignSnapshot(expires time.Time) (*data.Signed, error) {
 		if !targets.Dirty {
 			continue
 		}
-		signedTargets, err := tr.SignTargets(role, data.DefaultExpires("targets"))
+		signedTargets, err := tr.SignTargets(role, data.DefaultExpires("targets"), signer)
 		if err != nil {
 			return nil, err
 		}
@@ -535,7 +535,7 @@ func (tr *TufRepo) SignSnapshot(expires time.Time) (*data.Signed, error) {
 			return nil, err
 		}
 		snapshot := tr.keysDB.GetRole(data.ValidRoles["snapshot"])
-		signed, err = tr.sign(signed, *snapshot)
+		signed, err = tr.sign(signed, *snapshot, signer)
 		if err != nil {
 			return nil, err
 		}
@@ -550,10 +550,10 @@ func (tr *TufRepo) SignSnapshot(expires time.Time) (*data.Signed, error) {
 	}
 }
 
-func (tr *TufRepo) SignTimestamp(expires time.Time) (*data.Signed, error) {
+func (tr *TufRepo) SignTimestamp(expires time.Time, signer *signed.Signer) (*data.Signed, error) {
 	logrus.Debug("SignTimestamp")
 	if tr.Snapshot.Dirty {
-		signedSnapshot, err := tr.SignSnapshot(data.DefaultExpires("snapshot"))
+		signedSnapshot, err := tr.SignSnapshot(data.DefaultExpires("snapshot"), signer)
 		if err != nil {
 			return nil, err
 		}
@@ -569,7 +569,7 @@ func (tr *TufRepo) SignTimestamp(expires time.Time) (*data.Signed, error) {
 			return nil, err
 		}
 		timestamp := tr.keysDB.GetRole(data.ValidRoles["timestamp"])
-		signed, err = tr.sign(signed, *timestamp)
+		signed, err = tr.sign(signed, *timestamp, signer)
 		if err != nil {
 			return nil, err
 		}
@@ -585,7 +585,7 @@ func (tr *TufRepo) SignTimestamp(expires time.Time) (*data.Signed, error) {
 	}
 }
 
-func (tr TufRepo) sign(signed *data.Signed, role data.Role) (*data.Signed, error) {
+func (tr TufRepo) sign(signed *data.Signed, role data.Role, signer *signed.Signer) (*data.Signed, error) {
 	ks := make([]*data.PublicKey, 0, len(role.KeyIDs))
 	for _, kid := range role.KeyIDs {
 		k := tr.keysDB.GetKey(kid)
@@ -597,9 +597,16 @@ func (tr TufRepo) sign(signed *data.Signed, role data.Role) (*data.Signed, error
 	if len(ks) < 1 {
 		return nil, keys.ErrInvalidKey
 	}
-	err := tr.signer.Sign(signed, ks...)
-	if err != nil {
-		return nil, err
+	if signer != nil {
+		err := signer.Sign(signed, ks...)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		err := tr.signer.Sign(signed, ks...)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return signed, nil
 }
