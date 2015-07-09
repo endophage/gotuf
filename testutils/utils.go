@@ -23,7 +23,7 @@ func SampleMeta() data.FileMeta {
 }
 
 func GetSqliteDB() *sql.DB {
-	os.Mkdir("/tmp/sqlite", 0777)
+	os.Mkdir("/tmp/sqlite", 0755)
 	conn, err := sql.Open("sqlite3", fmt.Sprintf("/tmp/sqlite/file%d.db", counter))
 	if err != nil {
 		panic("can't connect to db")
