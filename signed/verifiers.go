@@ -122,6 +122,10 @@ func (v RSAPSSVerifier) Verify(key data.Key, sig []byte, msg []byte) error {
 	digest := sha256.Sum256(msg)
 
 	k, _ := pem.Decode([]byte(key.Public()))
+	if k == nil {
+		logrus.Infof("Failed to decode public key")
+		return ErrInvalid
+	}
 	pub, err := x509.ParsePKIXPublicKey(k.Bytes)
 	if err != nil {
 		logrus.Infof("Failed to parse public key: %s\n", err)
