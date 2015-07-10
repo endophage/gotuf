@@ -23,7 +23,7 @@ func (rt *TestRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 	return http.DefaultClient.Do(req)
 }
 
-func TestGetMeta(t *testing.T) {
+func TestHTTPStoreGetMeta(t *testing.T) {
 	store, err := NewHTTPStore(
 		"http://mirror1.poly.edu/test-pypi/",
 		"metadata",
@@ -68,9 +68,9 @@ func TestGetMeta(t *testing.T) {
 }
 
 func TestSetMultiMeta(t *testing.T) {
-	metas := map[string]json.RawMessage{
-		"root":    json.RawMessage("root data"),
-		"targets": json.RawMessage("targets data"),
+	metas := map[string][]byte{
+		"root":    []byte("root data"),
+		"targets": []byte("targets data"),
 	}
 
 	handler := func(w http.ResponseWriter, r *http.Request) {

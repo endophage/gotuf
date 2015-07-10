@@ -2,7 +2,6 @@ package store
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -54,7 +53,7 @@ func NewHTTPStore(baseURL, metaPrefix, metaExtension, targetsPrefix, keyExtensio
 // GetMeta downloads the named meta file with the given size. A short body
 // is acceptable because in the case of timestamp.json, the size is a cap,
 // not an exact length.
-func (s HTTPStore) GetMeta(name string, size int64) (json.RawMessage, error) {
+func (s HTTPStore) GetMeta(name string, size int64) ([]byte, error) {
 	url, err := s.buildMetaURL(name)
 	if err != nil {
 		return nil, err
@@ -77,10 +76,10 @@ func (s HTTPStore) GetMeta(name string, size int64) (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	return json.RawMessage(body), nil
+	return body, nil
 }
 
-func (s HTTPStore) SetMeta(name string, blob json.RawMessage) error {
+func (s HTTPStore) SetMeta(name string, blob []byte) error {
 	url, err := s.buildMetaURL("")
 	if err != nil {
 		return err
@@ -93,7 +92,7 @@ func (s HTTPStore) SetMeta(name string, blob json.RawMessage) error {
 	return err
 }
 
-func (s HTTPStore) SetMultiMeta(metas map[string]json.RawMessage) error {
+func (s HTTPStore) SetMultiMeta(metas map[string][]byte) error {
 	url, err := s.buildMetaURL("")
 	if err != nil {
 		return err
