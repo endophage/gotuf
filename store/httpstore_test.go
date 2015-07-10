@@ -3,6 +3,7 @@ package store
 import (
 	"encoding/hex"
 	"encoding/json"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -12,6 +13,12 @@ import (
 	"github.com/endophage/gotuf/signed"
 )
 
+type TestRoundTripper struct{}
+
+func (rt *TestRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return http.DefaultClient.Do(req)
+}
+
 func TestGetMeta(t *testing.T) {
 	store, err := NewHTTPStore(
 		"http://mirror1.poly.edu/test-pypi/",
@@ -19,6 +26,7 @@ func TestGetMeta(t *testing.T) {
 		"txt",
 		"targets",
 		"key",
+		&http.Transport{},
 	)
 	if err != nil {
 		t.Fatal(err)
