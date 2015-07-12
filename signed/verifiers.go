@@ -19,12 +19,10 @@ import (
 // can be injected into a verificationService. For testing and configuration
 // purposes, it will not be used by default.
 var Verifiers = map[string]Verifier{
-	"ed25519":             Ed25519Verifier{},
-	"rsassa-pss":          RSAPSSVerifier{},
-	"rsassa-pss-x509":     RSAPSSX509Verifier{},
-	"ecdsa":               ECDSAVerifier{},
-	"ecdsa-x509":          ECDSAX509Verifier{},
-	"pycrypto-pkcs#1 pss": RSAPyCryptoVerifier{},
+	data.RSAPSSSignature:   RSAPSSVerifier{},
+	data.PyCryptoSignature: RSAPyCryptoVerifier{},
+	data.ECDSASignature:    ECDSAVerifier{},
+	data.EDDSASignature:    Ed25519Verifier{},
 }
 
 // RegisterVerifier provides a convenience function for init() functions
@@ -85,15 +83,37 @@ type RSAPSSVerifier struct{}
 
 // Verify does the actual check.
 func (v RSAPSSVerifier) Verify(key data.Key, sig []byte, msg []byte) error {
-	digest := sha256.Sum256(msg)
+	cipher := key.Cipher()
+	var pubKey crypto.PublicKey
 
-	pub, err := x509.ParsePKIXPublicKey(key.Public())
-	if err != nil {
-		logrus.Infof("Failed to parse public key: %s\n", err)
+	switch cipher {
+	case data.RSAx509Key:
+		pemCert, _ := pem.Decode([]byte(key.Public()))
+		if pemCert == nil {
+			logrus.Infof("Failed to decode PEM-encoded x509 certificate")
+			return ErrInvalid
+		}
+		cert, err := x509.ParseCertificate(pemCert.Bytes)
+		if err != nil {
+			logrus.Infof("Failed to parse x509 certificate: %s\n", err)
+			return ErrInvalid
+		}
+		pubKey = cert.PublicKey
+	case data.RSAKey:
+		var err error
+		pubKey, err = x509.ParsePKIXPublicKey(key.Public())
+		if err != nil {
+			logrus.Infof("Failed to parse public key: %s\n", err)
+			return ErrInvalid
+		}
+	default:
+		logrus.Infof("invalid key type for RSAPSS verifier: %s", cipher)
 		return ErrInvalid
 	}
 
-	return verifyPSS(pub, digest[:], sig)
+	digest := sha256.Sum256(msg)
+
+	return verifyPSS(pubKey, digest[:], sig)
 }
 
 // RSAPSSVerifier checks RSASSA-PSS signatures
@@ -120,89 +140,43 @@ func (v RSAPyCryptoVerifier) Verify(key data.Key, sig []byte, msg []byte) error 
 	return verifyPSS(pub, digest[:], sig)
 }
 
-// RSAPSSPEMVerifier checks RSASSA-PSS signatures, extracting the public key
-// from an X509 certificate.
-type RSAPSSX509Verifier struct{}
-
-// Verify does the actual check.
-func (v RSAPSSX509Verifier) Verify(key data.Key, sig []byte, msg []byte) error {
-	digest := sha256.Sum256(msg)
-
-	k, _ := pem.Decode([]byte(key.Public()))
-	if k == nil {
-		logrus.Infof("Failed to decode PEM-encoded x509 certificate")
-		return ErrInvalid
-	}
-	cert, err := x509.ParseCertificate(k.Bytes)
-	if err != nil {
-		logrus.Infof("Failed to parse x509 certificate: %s\n", err)
-		return ErrInvalid
-	}
-
-	return verifyPSS(cert.PublicKey, digest[:], sig)
-}
-
-// ECDSAX509Verifier checks ECDSA signatures, extracting the public key
-// from an X509 certificate.
-type ECDSAX509Verifier struct{}
-
-// Verify does the actual check.
-func (v ECDSAX509Verifier) Verify(key data.Key, sig []byte, msg []byte) error {
-	digest := sha256.Sum256(msg)
-
-	k, _ := pem.Decode([]byte(key.Public()))
-	if k == nil {
-		logrus.Infof("Failed to decode PEM-encoded x509 certificate for keyID: %s", key.ID())
-		logrus.Debugf("Certificate bytes: %s", string(key.Public()))
-		return ErrInvalid
-	}
-	cert, err := x509.ParseCertificate(k.Bytes)
-	if err != nil {
-		logrus.Infof("Failed to parse x509 certificate: %s\n", err)
-		return ErrInvalid
-	}
-
-	ecdsaPubKey, ok := cert.PublicKey.(*ecdsa.PublicKey)
-	if !ok {
-		logrus.Infof("Value was not an RSA public key")
-		return ErrInvalid
-	}
-
-	sigLength := len(sig)
-	expectedOctetLength := 2 * ((ecdsaPubKey.Params().BitSize + 7) >> 3)
-	if sigLength != expectedOctetLength {
-		logrus.Infof("Signature had an unexpected length")
-		return ErrInvalid
-	}
-
-	rBytes, sBytes := sig[:sigLength/2], sig[sigLength/2:]
-	r := new(big.Int).SetBytes(rBytes)
-	s := new(big.Int).SetBytes(sBytes)
-
-	if !ecdsa.Verify(ecdsaPubKey, digest[:], r, s) {
-		logrus.Infof("Failed signature validation")
-		return ErrInvalid
-	}
-
-	return nil
-}
-
-// ECDSAVerifier checks ECDSA signatures
+// ECDSAVerifier checks ECDSA signatures, decoding the keyType appropriately
 type ECDSAVerifier struct{}
 
 // Verify does the actual check.
 func (v ECDSAVerifier) Verify(key data.Key, sig []byte, msg []byte) error {
-	digest := sha256.Sum256(msg)
+	cipher := key.Cipher()
+	var pubKey crypto.PublicKey
 
-	pubKey, err := x509.ParsePKIXPublicKey(key.Public())
-	if err != nil {
-		logrus.Infof("Failed to parse private key for keyID: %s, %s\n", key.ID(), err)
+	switch cipher {
+	case data.ECDSAx509Key:
+		pemCert, _ := pem.Decode([]byte(key.Public()))
+		if pemCert == nil {
+			logrus.Infof("Failed to decode PEM-encoded x509 certificate for keyID: %s", key.ID())
+			logrus.Debugf("Certificate bytes: %s", string(key.Public()))
+			return ErrInvalid
+		}
+		cert, err := x509.ParseCertificate(pemCert.Bytes)
+		if err != nil {
+			logrus.Infof("Failed to parse x509 certificate: %s\n", err)
+			return ErrInvalid
+		}
+		pubKey = cert.PublicKey
+	case data.ECDSAKey:
+		var err error
+		pubKey, err = x509.ParsePKIXPublicKey(key.Public())
+		if err != nil {
+			logrus.Infof("Failed to parse private key for keyID: %s, %s\n", key.ID(), err)
+			return ErrInvalid
+		}
+	default:
+		logrus.Infof("invalid key type for ECDSA verifier: %s", cipher)
 		return ErrInvalid
 	}
 
 	ecdsaPubKey, ok := pubKey.(*ecdsa.PublicKey)
 	if !ok {
-		logrus.Infof("Value was not an RSA public key")
+		logrus.Infof("Value was not an ECDSA public key")
 		return ErrInvalid
 	}
 
@@ -216,6 +190,8 @@ func (v ECDSAVerifier) Verify(key data.Key, sig []byte, msg []byte) error {
 	rBytes, sBytes := sig[:sigLength/2], sig[sigLength/2:]
 	r := new(big.Int).SetBytes(rBytes)
 	s := new(big.Int).SetBytes(sBytes)
+
+	digest := sha256.Sum256(msg)
 
 	if !ecdsa.Verify(ecdsaPubKey, digest[:], r, s) {
 		logrus.Infof("Failed signature validation")
