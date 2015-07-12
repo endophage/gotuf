@@ -2,10 +2,12 @@ package signed
 
 import (
 	"crypto"
+	"crypto/ecdsa"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/pem"
+	"math/big"
 	"reflect"
 
 	"github.com/Sirupsen/logrus"
@@ -20,6 +22,8 @@ var Verifiers = map[string]Verifier{
 	"ed25519":             Ed25519Verifier{},
 	"rsassa-pss":          RSAPSSVerifier{},
 	"rsassa-pss-x509":     RSAPSSX509Verifier{},
+	"ecdsa":               ECDSAVerifier{},
+	"ecdsa-x509":          ECDSAX509Verifier{},
 	"pycrypto-pkcs#1 pss": RSAPyCryptoVerifier{},
 }
 
@@ -136,4 +140,87 @@ func (v RSAPSSX509Verifier) Verify(key data.Key, sig []byte, msg []byte) error {
 	}
 
 	return verifyPSS(cert.PublicKey, digest[:], sig)
+}
+
+// ECDSAX509Verifier checks ECDSA signatures, extracting the public key
+// from an X509 certificate.
+type ECDSAX509Verifier struct{}
+
+// Verify does the actual check.
+func (v ECDSAX509Verifier) Verify(key data.Key, sig []byte, msg []byte) error {
+	digest := sha256.Sum256(msg)
+
+	k, _ := pem.Decode([]byte(key.Public()))
+	if k == nil {
+		logrus.Infof("Failed to decode PEM-encoded x509 certificate for keyID: %s", key.ID())
+		logrus.Debugf("Certificate bytes: %s", string(key.Public()))
+		return ErrInvalid
+	}
+	cert, err := x509.ParseCertificate(k.Bytes)
+	if err != nil {
+		logrus.Infof("Failed to parse x509 certificate: %s\n", err)
+		return ErrInvalid
+	}
+
+	ecdsaPubKey, ok := cert.PublicKey.(*ecdsa.PublicKey)
+	if !ok {
+		logrus.Infof("Value was not an RSA public key")
+		return ErrInvalid
+	}
+
+	sigLength := len(sig)
+	expectedOctetLength := 2 * ((ecdsaPubKey.Params().BitSize + 7) >> 3)
+	if sigLength != expectedOctetLength {
+		logrus.Infof("Signature had an unexpected length")
+		return ErrInvalid
+	}
+
+	rBytes, sBytes := sig[:sigLength/2], sig[sigLength/2:]
+	r := new(big.Int).SetBytes(rBytes)
+	s := new(big.Int).SetBytes(sBytes)
+
+	if !ecdsa.Verify(ecdsaPubKey, digest[:], r, s) {
+		logrus.Infof("Failed signature validation")
+		return ErrInvalid
+	}
+
+	return nil
+}
+
+// ECDSAVerifier checks ECDSA signatures
+type ECDSAVerifier struct{}
+
+// Verify does the actual check.
+func (v ECDSAVerifier) Verify(key data.Key, sig []byte, msg []byte) error {
+	digest := sha256.Sum256(msg)
+
+	pubKey, err := x509.ParsePKIXPublicKey(key.Public())
+	if err != nil {
+		logrus.Infof("Failed to parse private key for keyID: %s, %s\n", key.ID(), err)
+		return ErrInvalid
+	}
+
+	ecdsaPubKey, ok := pubKey.(*ecdsa.PublicKey)
+	if !ok {
+		logrus.Infof("Value was not an RSA public key")
+		return ErrInvalid
+	}
+
+	sigLength := len(sig)
+	expectedOctetLength := 2 * ((ecdsaPubKey.Params().BitSize + 7) >> 3)
+	if sigLength != expectedOctetLength {
+		logrus.Infof("Signature had an unexpected length")
+		return ErrInvalid
+	}
+
+	rBytes, sBytes := sig[:sigLength/2], sig[sigLength/2:]
+	r := new(big.Int).SetBytes(rBytes)
+	s := new(big.Int).SetBytes(sBytes)
+
+	if !ecdsa.Verify(ecdsaPubKey, digest[:], r, s) {
+		logrus.Infof("Failed signature validation")
+		return ErrInvalid
+	}
+
+	return nil
 }
