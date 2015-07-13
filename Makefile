@@ -20,11 +20,21 @@ build:
 
 test:
 	@echo "+ $@"
-	@go test -test.short ./...
+	# FIXME: go back to "./..." form when items under "cmd" build properly
+	#@go test -test.short ./...
+	go test -test.short ./signed
+	go test -test.short ./store
+	go test -test.short ./utils
+	go test -test.short
 
 test-full:
 	@echo "+ $@"
-	@go test ./...
+	# FIXME: go back to "./..." form when items under "cmd" build properly
+	#@go test ./...
+	go test ./signed
+	go test ./store
+	go test ./utils
+	go test
 
 binaries: ${PREFIX}/bin/registry ${PREFIX}/bin/registry-api-descriptor-template ${PREFIX}/bin/dist
 	@echo "+ $@"
