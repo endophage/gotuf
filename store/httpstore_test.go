@@ -4,7 +4,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/tent/canonical-json-go"
@@ -55,7 +54,7 @@ func TestGetMeta(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	method := strings.ToLower(p.Signatures[0].Method)
+	method := p.Signatures[0].Method
 	err = signed.Verifiers[method].Verify(k, sigBytes, msg)
 	if err != nil {
 		t.Fatal(err)
