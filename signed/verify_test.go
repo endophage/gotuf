@@ -20,7 +20,6 @@ var _ = Suite(&VerifySuite{})
 
 func (VerifySuite) Test(c *C) {
 	trust := NewEd25519()
-	signer := NewSigner(trust)
 	type test struct {
 		name  string
 		keys  []*data.PublicKey
@@ -79,7 +78,7 @@ func (VerifySuite) Test(c *C) {
 			name: "more than enough signatures",
 			mut: func(t *test) {
 				k, _ := trust.Create("root", data.ED25519Key)
-				signer.Sign(t.s, k)
+				Sign(trust, t.s, k)
 				t.keys = append(t.keys, k)
 				t.roles["root"].KeyIDs = append(t.roles["root"].KeyIDs, k.ID())
 			},
@@ -96,14 +95,14 @@ func (VerifySuite) Test(c *C) {
 			name: "unknown key",
 			mut: func(t *test) {
 				k, _ := trust.Create("root", data.ED25519Key)
-				signer.Sign(t.s, k)
+				Sign(trust, t.s, k)
 			},
 		},
 		{
 			name: "unknown key below threshold",
 			mut: func(t *test) {
 				k, _ := trust.Create("root", data.ED25519Key)
-				signer.Sign(t.s, k)
+				Sign(trust, t.s, k)
 				t.roles["root"].Threshold = 2
 			},
 			err: ErrRoleThreshold,
@@ -112,7 +111,7 @@ func (VerifySuite) Test(c *C) {
 			name: "unknown keys in db",
 			mut: func(t *test) {
 				k, _ := trust.Create("root", data.ED25519Key)
-				signer.Sign(t.s, k)
+				Sign(trust, t.s, k)
 				t.keys = append(t.keys, k)
 			},
 		},
@@ -120,7 +119,7 @@ func (VerifySuite) Test(c *C) {
 			name: "unknown keys in db below threshold",
 			mut: func(t *test) {
 				k, _ := trust.Create("root", data.ED25519Key)
-				signer.Sign(t.s, k)
+				Sign(trust, t.s, k)
 				t.keys = append(t.keys, k)
 				t.roles["root"].Threshold = 2
 			},
@@ -163,7 +162,7 @@ func (VerifySuite) Test(c *C) {
 			b, err := cjson.Marshal(meta)
 			c.Assert(err, IsNil)
 			s := &data.Signed{Signed: b}
-			signer.Sign(s, k)
+			Sign(trust, s, k)
 			t.s = s
 			t.keys = []*data.PublicKey{k}
 		}
