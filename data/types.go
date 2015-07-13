@@ -15,14 +15,17 @@ import (
 
 const (
 	defaultHashAlgorithm = "sha256"
-	EDDSASignature       = "eddsa"
-	RSAPSSSignature      = "rsapss"
-	ECDSASignature       = "ecdsa"
-	RSAKey               = "rsa"
-	RSAx509Key           = "rsa-x509"
-	ECDSAKey             = "ecdsa"
-	ECDSAx509Key         = "ecdsa-x509"
-	PyCryptoSignature    = "pycrypto-pkcs#1 pss"
+
+	EDDSASignature    = "eddsa"
+	RSAPSSSignature   = "rsapss"
+	ECDSASignature    = "ecdsa"
+	PyCryptoSignature = "pycrypto-pkcs#1 pss"
+
+	ED25519Key   = "ed25519"
+	RSAKey       = "rsa"
+	RSAx509Key   = "rsa-x509"
+	ECDSAKey     = "ecdsa"
+	ECDSAx509Key = "ecdsa-x509"
 )
 
 var TUFTypes = map[string]string{
