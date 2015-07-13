@@ -30,7 +30,7 @@ significant changes that I could not maintain backwards compatibility
 without the code becoming overly convoluted.
 
 Some features such as pluggable verifiers have alreayd been merged upstream to flynn/go-tuf
-and we are in discussion with @titanous about working to merge the 2 implementations.
+and we are in discussion with [titanous](https://github.com/titanous) about working to merge the 2 implementations.
 
 This implementation retains the same 3 Clause BSD license present on 
 the original flynn implementation.
