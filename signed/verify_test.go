@@ -78,7 +78,7 @@ func (VerifySuite) Test(c *C) {
 		{
 			name: "more than enough signatures",
 			mut: func(t *test) {
-				k, _ := signer.Create("root")
+				k, _ := trust.Create("root", data.ED25519Key)
 				signer.Sign(t.s, k)
 				t.keys = append(t.keys, k)
 				t.roles["root"].KeyIDs = append(t.roles["root"].KeyIDs, k.ID())
@@ -95,14 +95,14 @@ func (VerifySuite) Test(c *C) {
 		{
 			name: "unknown key",
 			mut: func(t *test) {
-				k, _ := signer.Create("root")
+				k, _ := trust.Create("root", data.ED25519Key)
 				signer.Sign(t.s, k)
 			},
 		},
 		{
 			name: "unknown key below threshold",
 			mut: func(t *test) {
-				k, _ := signer.Create("root")
+				k, _ := trust.Create("root", data.ED25519Key)
 				signer.Sign(t.s, k)
 				t.roles["root"].Threshold = 2
 			},
@@ -111,7 +111,7 @@ func (VerifySuite) Test(c *C) {
 		{
 			name: "unknown keys in db",
 			mut: func(t *test) {
-				k, _ := signer.Create("root")
+				k, _ := trust.Create("root", data.ED25519Key)
 				signer.Sign(t.s, k)
 				t.keys = append(t.keys, k)
 			},
@@ -119,7 +119,7 @@ func (VerifySuite) Test(c *C) {
 		{
 			name: "unknown keys in db below threshold",
 			mut: func(t *test) {
-				k, _ := signer.Create("root")
+				k, _ := trust.Create("root", data.ED25519Key)
 				signer.Sign(t.s, k)
 				t.keys = append(t.keys, k)
 				t.roles["root"].Threshold = 2
@@ -157,7 +157,7 @@ func (VerifySuite) Test(c *C) {
 			t.typ = data.TUFTypes[t.role]
 		}
 		if t.keys == nil && t.s == nil {
-			k, _ := signer.Create("root")
+			k, _ := trust.Create("root", data.ED25519Key)
 			meta := &signedMeta{Type: t.typ, Version: t.ver, Expires: t.exp.Format("2006-01-02 15:04:05 MST")}
 
 			b, err := cjson.Marshal(meta)

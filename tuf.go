@@ -75,7 +75,7 @@ func (tr *TufRepo) AddBaseKeys(role string, keys ...data.Key) error {
 		return &ErrNotLoaded{role: "root"}
 	}
 	for _, k := range keys {
-		key := data.NewPublicKey(k.Cipher(), k.Public())
+		key := data.NewPublicKey(k.Algorithm(), k.Public())
 		tr.Root.Signed.Keys[key.ID()] = key
 		tr.keysDB.AddKey(key)
 		tr.Root.Signed.Roles[role].KeyIDs = append(tr.Root.Signed.Roles[role].KeyIDs, key.ID())
@@ -142,7 +142,7 @@ func (tr *TufRepo) UpdateDelegations(role *data.Role, keys []data.Key, before st
 		return errors.ErrInvalidRole{}
 	}
 	for _, k := range keys {
-		key := data.NewPublicKey(k.Cipher(), k.Public())
+		key := data.NewPublicKey(k.Algorithm(), k.Public())
 		if !utils.StrSliceContains(role.KeyIDs, key.ID()) {
 			role.KeyIDs = append(role.KeyIDs, key.ID())
 		}
@@ -203,7 +203,7 @@ func (tr *TufRepo) InitRoot(consistent bool) error {
 			// checked by KeyDB when role was added.
 			key := tr.keysDB.GetKey(kid)
 			// Create new key object to doubly ensure private key is excluded
-			k := data.NewPublicKey(key.Cipher(), key.Public())
+			k := data.NewPublicKey(key.Algorithm(), key.Public())
 			rootKeys[kid] = k
 		}
 	}
