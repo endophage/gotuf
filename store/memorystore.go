@@ -34,6 +34,13 @@ func (m *memoryStore) SetMeta(name string, meta json.RawMessage) error {
 	return nil
 }
 
+func (m *memoryStore) SetMultiMeta(metas map[string]json.RawMessage) error {
+	for role, blob := range metas {
+		m.SetMeta(role, blob)
+	}
+	return nil
+}
+
 func (m *memoryStore) AddBlob(path string, meta data.FileMeta) {
 
 }

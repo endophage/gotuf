@@ -12,6 +12,7 @@ type targetsWalkFunc func(path string, meta data.FileMeta) error
 type MetadataStore interface {
 	GetMeta(name string, size int64) (json.RawMessage, error)
 	SetMeta(name string, blob json.RawMessage) error
+	SetMultiMeta(map[string]json.RawMessage) error
 }
 
 type PublicKeyStore interface {
