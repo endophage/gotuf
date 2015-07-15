@@ -32,9 +32,7 @@ func (trust *Ed25519) Sign(keyIDs []string, toSign []byte) ([]data.Signature, er
 	signatures := make([]data.Signature, 0, len(keyIDs))
 	for _, kID := range keyIDs {
 		priv := [ed25519.PrivateKeySize]byte{}
-		pub := [ed25519.PublicKeySize]byte{}
 		copy(priv[:], trust.keys[kID].Private())
-		copy(pub[:], trust.keys[kID].Public())
 		sig := ed25519.Sign(&priv, toSign)
 		signatures = append(signatures, data.Signature{
 			KeyID:     kID,
