@@ -22,7 +22,7 @@ func (VerifySuite) Test(c *C) {
 	trust := NewEd25519()
 	type test struct {
 		name  string
-		keys  []*data.PublicKey
+		keys  []data.Key
 		roles map[string]*data.Role
 		s     *data.Signed
 		ver   int
@@ -164,7 +164,7 @@ func (VerifySuite) Test(c *C) {
 			s := &data.Signed{Signed: b}
 			Sign(trust, s, k)
 			t.s = s
-			t.keys = []*data.PublicKey{k}
+			t.keys = []data.Key{k}
 		}
 		if t.roles == nil {
 			t.roles = map[string]*data.Role{

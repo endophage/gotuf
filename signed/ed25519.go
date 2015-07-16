@@ -24,8 +24,9 @@ func (trust *Ed25519) addKey(k *data.PrivateKey) {
 	trust.keys[k.ID()] = k
 }
 
-func (trust *Ed25519) RemoveKey(keyID string) {
+func (trust *Ed25519) RemoveKey(keyID string) error {
 	delete(trust.keys, keyID)
+	return nil
 }
 
 func (trust *Ed25519) Sign(keyIDs []string, toSign []byte) ([]data.Signature, error) {
@@ -44,7 +45,7 @@ func (trust *Ed25519) Sign(keyIDs []string, toSign []byte) ([]data.Signature, er
 
 }
 
-func (trust *Ed25519) Create(role string, algorithm data.KeyAlgorithm) (*data.PublicKey, error) {
+func (trust *Ed25519) Create(role string, algorithm data.KeyAlgorithm) (data.Key, error) {
 	if algorithm != data.ED25519Key {
 		return nil, errors.New("only ED25519 supported by this cryptoservice")
 	}
@@ -63,8 +64,12 @@ func (trust *Ed25519) PublicKeys(keyIDs ...string) (map[string]*data.PublicKey, 
 	k := make(map[string]*data.PublicKey)
 	for _, kID := range keyIDs {
 		if key, ok := trust.keys[kID]; ok {
-			k[kID] = data.PublicKeyFromPrivate(*key)
+			k[kID] = data.PublicKeyFromPrivate(key)
 		}
 	}
 	return k, nil
+}
+
+func (trust *Ed25519) GetKey(keyID string) data.Key {
+	return data.PublicKeyFromPrivate(trust.keys[keyID])
 }
