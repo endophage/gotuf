@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"path"
@@ -80,7 +81,7 @@ func (s HTTPStore) GetMeta(name string, size int64) (json.RawMessage, error) {
 }
 
 func (s HTTPStore) SetMeta(name string, blob json.RawMessage) error {
-	url, err := s.buildMetaURL(name)
+	url, err := s.buildMetaURL("")
 	if err != nil {
 		return err
 	}
@@ -92,8 +93,38 @@ func (s HTTPStore) SetMeta(name string, blob json.RawMessage) error {
 	return err
 }
 
+func (s HTTPStore) SetMultiMeta(metas map[string]json.RawMessage) error {
+	url, err := s.buildMetaURL("")
+	if err != nil {
+		return err
+	}
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	for role, blob := range metas {
+		part, err := writer.CreateFormFile("files", role)
+		_, err = io.Copy(part, bytes.NewBuffer(blob))
+		if err != nil {
+			return err
+		}
+	}
+	err = writer.Close()
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest("POST", url.String(), body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	if err != nil {
+		return err
+	}
+	_, err = s.roundTrip.RoundTrip(req)
+	return err
+}
+
 func (s HTTPStore) buildMetaURL(name string) (*url.URL, error) {
-	filename := fmt.Sprintf("%s.%s", name, s.metaExtension)
+	var filename string
+	if name != "" {
+		filename = fmt.Sprintf("%s.%s", name, s.metaExtension)
+	}
 	uri := path.Join(s.metaPrefix, filename)
 	return s.buildURL(uri)
 }

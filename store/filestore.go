@@ -48,6 +48,16 @@ func (f *filesystemStore) GetMeta(name string, size int64) (json.RawMessage, err
 	return meta, nil
 }
 
+func (f *filesystemStore) SetMultiMeta(metas map[string]json.RawMessage) error {
+	for role, blob := range metas {
+		err := f.SetMeta(role, blob)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (f *filesystemStore) SetMeta(name string, meta json.RawMessage) error {
 	fileName := fmt.Sprintf("%s.%s", name, f.metaExtension)
 	path := filepath.Join(f.metaDir, fileName)
