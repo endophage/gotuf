@@ -131,7 +131,7 @@ func TestRSAPSSVerifierWithInvalidSignature(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Modify the signature
-	signedData[0] = []byte("a")[0]
+	signedData[0]++
 
 	// Create and call Verify on the verifier
 	rsaVerifier := RSAPSSVerifier{}
@@ -242,7 +242,7 @@ func TestRSAPKCS1v15VerifierWithInvalidSignature(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Modify the signature
-	signedData[0] = []byte("a")[0]
+	signedData[0]++
 
 	// Create and call Verify on the verifier
 	rsaVerifier := RSAPKCS1v15Verifier{}
@@ -349,7 +349,7 @@ func TestECDSAVerifierWithInvalidSignature(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Modify the signature
-	signedData[0] = []byte("a")[0]
+	signedData[0]++
 
 	// Create and call Verify on the verifier
 	ecdsaVerifier := ECDSAVerifier{}
