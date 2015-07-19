@@ -174,25 +174,7 @@ func (c *Client) downloadRoot() error {
 		logrus.Debug("using cached root")
 		s = old
 	}
-	// this will confirm that the root has been signed by the old root role
-	// as c.keysDB contains the root keys we bootstrapped with.
-	// Still need to determine if there has been a root key update and
-	// confirm signature with new root key
-	err = signed.Verify(s, role, version, c.keysDB)
-	if err != nil {
-		logrus.Debug("root did not verify with existing keys")
-		return err
-	}
-
-	// This will cause keyDB to get updated, overwriting any keyIDs associated
-	// with the roles in root.json
-	c.local.SetRoot(s)
-	// verify again now that the old keys have been replaced with the new keys.
-	// TODO(endophage): be more intelligent and only re-verify if we detect
-	//                  there has been a change in root keys
-	err = signed.Verify(s, role, version, c.keysDB)
-	if err != nil {
-		logrus.Debug("root did not verify with new keys")
+	if err := c.verifyRoot(role, s, version); err != nil {
 		return err
 	}
 	if download {
@@ -202,6 +184,39 @@ func (c *Client) downloadRoot() error {
 			logrus.Errorf("Failed to write root to local cache: %s", err.Error())
 		}
 	}
+	return nil
+}
+
+func (c Client) verifyRoot(role string, s *data.Signed, minVersion int) error {
+	// this will confirm that the root has been signed by the old root role
+	// as c.keysDB contains the root keys we bootstrapped with.
+	// Still need to determine if there has been a root key update and
+	// confirm signature with new root key
+	logrus.Debug("verifying root with existing keys")
+	err := signed.Verify(s, role, minVersion, c.keysDB)
+	if err != nil {
+		logrus.Debug("root did not verify with existing keys")
+		return err
+	}
+
+	// This will cause keyDB to get updated, overwriting any keyIDs associated
+	// with the roles in root.json
+	logrus.Debug("updating known root roles and keys")
+	err = c.local.SetRoot(s)
+	if err != nil {
+		logrus.Error(err.Error())
+		return err
+	}
+	// verify again now that the old keys have been replaced with the new keys.
+	// TODO(endophage): be more intelligent and only re-verify if we detect
+	//                  there has been a change in root keys
+	logrus.Debug("verifying root with updated keys")
+	err = signed.Verify(s, role, minVersion, c.keysDB)
+	if err != nil {
+		logrus.Debug("root did not verify with new keys")
+		return err
+	}
+	logrus.Debug("successfully verified root")
 	return nil
 }
 
