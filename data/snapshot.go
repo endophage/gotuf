@@ -1,11 +1,9 @@
 package data
 
 import (
-	"bytes"
 	"encoding/json"
 	"time"
 
-	"github.com/Sirupsen/logrus"
 	cjson "github.com/tent/canonical-json-go"
 )
 
@@ -22,36 +20,14 @@ type Snapshot struct {
 	Meta    Files     `json:"meta"`
 }
 
-func NewSnapshot(root *Signed, targets *Signed) (*SignedSnapshot, error) {
-	logrus.Debug("generating new snapshot...")
-	targetsJSON, err := json.Marshal(targets)
-	if err != nil {
-		logrus.Debug("Error Marshalling Targets")
-		return nil, err
-	}
-	rootJSON, err := json.Marshal(root)
-	if err != nil {
-		logrus.Debug("Error Marshalling Root")
-		return nil, err
-	}
-	rootMeta, err := NewFileMeta(bytes.NewReader(rootJSON), "sha256")
-	if err != nil {
-		return nil, err
-	}
-	targetsMeta, err := NewFileMeta(bytes.NewReader(targetsJSON), "sha256")
-	if err != nil {
-		return nil, err
-	}
+func NewSnapshot() (*SignedSnapshot, error) {
 	return &SignedSnapshot{
 		Signatures: make([]Signature, 0),
 		Signed: Snapshot{
 			Type:    TUFTypes["snapshot"],
 			Version: 0,
 			Expires: DefaultExpires("snapshot"),
-			Meta: Files{
-				ValidRoles["root"]:    rootMeta,
-				ValidRoles["targets"]: targetsMeta,
-			},
+			Meta:    make(Files),
 		},
 	}, nil
 }

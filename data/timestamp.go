@@ -1,7 +1,6 @@
 package data
 
 import (
-	"bytes"
 	"encoding/json"
 	"time"
 
@@ -21,24 +20,14 @@ type Timestamp struct {
 	Meta    Files     `json:"meta"`
 }
 
-func NewTimestamp(snapshot *Signed) (*SignedTimestamp, error) {
-	snapshotJSON, err := json.Marshal(snapshot)
-	if err != nil {
-		return nil, err
-	}
-	snapshotMeta, err := NewFileMeta(bytes.NewReader(snapshotJSON), "sha256")
-	if err != nil {
-		return nil, err
-	}
+func NewTimestamp() (*SignedTimestamp, error) {
 	return &SignedTimestamp{
 		Signatures: make([]Signature, 0),
 		Signed: Timestamp{
 			Type:    TUFTypes["timestamp"],
 			Version: 0,
 			Expires: DefaultExpires("timestamp"),
-			Meta: Files{
-				ValidRoles["snapshot"]: snapshotMeta,
-			},
+			Meta:    make(Files),
 		},
 	}, nil
 }
