@@ -23,7 +23,7 @@ func (TypesSuite) TestGenerateFileMetaDefault(c *C) {
 	if !ok {
 		c.Fatal("missing sha512 hash")
 	}
-	c.Assert(hash.String(), DeepEquals, "f7fbba6e0636f890e56fbbf3283e524c6fa3204ae298382d624741d0dc6638326e282c41be5e4254d8820772c5518a2c5a8c0c7f7eda19594a7eb539453e1ed7")
+	c.Assert(string(hash), DeepEquals, "f7fbba6e0636f890e56fbbf3283e524c6fa3204ae298382d624741d0dc6638326e282c41be5e4254d8820772c5518a2c5a8c0c7f7eda19594a7eb539453e1ed7")
 }
 
 func (TypesSuite) TestGenerateFileMetaExplicit(c *C) {
@@ -41,7 +41,7 @@ func (TypesSuite) TestGenerateFileMetaExplicit(c *C) {
 		if !ok {
 			c.Fatalf("missing %s hash", name)
 		}
-		c.Assert(hash.String(), DeepEquals, val)
+		c.Assert(string(hash), DeepEquals, val)
 	}
 }
 
