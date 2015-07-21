@@ -50,8 +50,8 @@ func TestFileMetaEqual(t *testing.T) {
 			err:  func(t test) error { return ErrNoCommonHash{t.b.Hashes, t.a.Hashes} },
 		},
 	}
-	for _, t := range tests {
-		assert.True(t, FileMetaEqual(t.a, t.b), "Files not equivalent")
+	for _, run := range tests {
+		assert.Equal(t, FileMetaEqual(run.a, run.b), run.err(run), "Files not equivalent")
 	}
 }
 
@@ -84,7 +84,7 @@ func TestHashedPaths(t *testing.T) {
 	expected := map[string]struct{}{"foo/abc123.bar.txt": {}, "foo/def456.bar.txt": {}}
 	for _, path := range paths {
 		if _, ok := expected[path]; !ok {
-			c.Fatalf("unexpected path: %s", path)
+			t.Fatalf("unexpected path: %s", path)
 		}
 		delete(expected, path)
 	}
