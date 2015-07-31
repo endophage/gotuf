@@ -50,15 +50,9 @@ func (c *Client) Update() error {
 	logrus.Debug("updating TUF client")
 	err := c.update()
 	if err != nil {
-		switch err.(type) {
-		case signed.ErrRoleThreshold, signed.ErrExpired, tuf.ErrLocalRootExpired:
-			logrus.Debug("retryable error occurred. Root will be downloaded and another update attempted")
-			if err := c.downloadRoot(); err != nil {
-				logrus.Errorf("client Update (Root):", err)
-				return err
-			}
-		default:
-			logrus.Error("an unexpected error occurred while updating TUF client")
+		logrus.Debug("Error occurred. Root will be downloaded and another update attempted")
+		if err := c.downloadRoot(); err != nil {
+			logrus.Errorf("client Update (Root):", err)
 			return err
 		}
 		// If we error again, we now have the latest root and just want to fail
