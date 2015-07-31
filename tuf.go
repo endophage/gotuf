@@ -71,21 +71,29 @@ func NewTufRepo(keysDB *keys.KeyDB, cryptoService signed.CryptoService) *TufRepo
 }
 
 // AddBaseKeys is used to add keys to the role in root.json
-func (tr *TufRepo) AddBaseKeys(role string, keys ...*data.TUFKey) error {
+func (tr *TufRepo) AddBaseKeys(role string, keys ...data.PublicKey) error {
 	if tr.Root == nil {
 		return ErrNotLoaded{role: "root"}
 	}
 	for _, k := range keys {
 		// Store only the public portion
-		pubKey := *k
-		pubKey.Value.Private = nil
-		tr.Root.Signed.Keys[pubKey.ID()] = &pubKey
-		tr.keysDB.AddKey(&pubKey)
+		pubKey := data.NewPrivateKey(k.Algorithm(), k.Public(), nil)
+		tr.Root.Signed.Keys[pubKey.ID()] = pubKey
+		tr.keysDB.AddKey(k)
 		tr.Root.Signed.Roles[role].KeyIDs = append(tr.Root.Signed.Roles[role].KeyIDs, pubKey.ID())
 	}
 	tr.Root.Dirty = true
 	return nil
 
+}
+
+func (tr *TufRepo) ReplaceBaseKeys(role string, keys ...data.PublicKey) error {
+	r := tr.keysDB.GetRole(role)
+	err := tr.RemoveBaseKeys(role, r.KeyIDs...)
+	if err != nil {
+		return err
+	}
+	return tr.AddBaseKeys(role, keys...)
 }
 
 // RemoveKeys is used to remove keys from the roles in root.json
