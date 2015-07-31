@@ -114,6 +114,20 @@ func (c Client) checkRoot() error {
 	if !bytes.Equal(hash[:], hashSha256) {
 		return fmt.Errorf("Cached root sha256 did not match snapshot root sha256")
 	}
+
+	if int64(len(raw)) != size {
+		return fmt.Errorf("Cached root size did not match snapshot size")
+	}
+
+	root := &data.SignedRoot{}
+	err = json.Unmarshal(raw, root)
+	if err != nil {
+		return ErrCorruptedCache{file: "root.json"}
+	}
+
+	if signed.IsExpired(root.Signed.Expires) {
+		return tuf.ErrLocalRootExpired{}
+	}
 	return nil
 }
 
