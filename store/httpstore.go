@@ -89,7 +89,7 @@ func (s HTTPStore) GetMeta(name string, size int64) ([]byte, error) {
 		return nil, ErrMaliciousServer{}
 	}
 	logrus.Debugf("%d when retrieving metadata for %s", resp.StatusCode, name)
-	if resp.StatusCode == http.StatusNotFound {
+	if resp.StatusCode != http.StatusOK {
 		return nil, ErrMetaNotFound{}
 	}
 	b := io.LimitReader(resp.Body, size)
@@ -203,6 +203,9 @@ func (s HTTPStore) GetKey(role string) ([]byte, error) {
 	resp, err := s.roundTrip.RoundTrip(req)
 	if err != nil {
 		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, ErrMetaNotFound{}
 	}
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
