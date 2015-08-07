@@ -63,7 +63,7 @@ func BenchmarkKeyGeneration(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		ScalarBaseMult(&publicKey, &representative, &privateKey)
+		ScalarBaseMult(&publicKey, &representative, &privateKey);
 	}
 }
 
@@ -73,6 +73,6 @@ func BenchmarkMap(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		RepresentativeToPublicKey(&publicKey, &representative)
+		RepresentativeToPublicKey(&publicKey, &representative);
 	}
 }
