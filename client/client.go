@@ -271,7 +271,6 @@ func (c *Client) downloadTimestamp() error {
 	}
 	// unlike root, targets and snapshot, always try and download timestamps
 	// from remote, only using the cache one if we couldn't reach remote.
-	logrus.Debug("Downloading timestamp")
 	raw, err := c.remote.GetMeta(role, maxSize)
 	var s *data.Signed
 	if err != nil || len(raw) == 0 {
@@ -286,6 +285,7 @@ func (c *Client) downloadTimestamp() error {
 			}
 			return err
 		}
+		logrus.Debug("using cached timestamp")
 		s = old
 	} else {
 		download = true
