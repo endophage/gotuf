@@ -228,3 +228,149 @@ func TestCheckRootExpired(t *testing.T) {
 	assert.Error(t, err)
 	assert.IsType(t, tuf.ErrLocalRootExpired{}, err)
 }
+
+func TestChecksumMismatch(t *testing.T) {
+	repo := tuf.NewTufRepo(nil, nil)
+	localStorage := store.NewMemoryStore(nil, nil)
+	remoteStorage := store.NewMemoryStore(nil, nil)
+	client := NewClient(repo, remoteStorage, nil, localStorage)
+
+	sampleTargets := data.NewTargets()
+	orig, err := json.Marshal(sampleTargets)
+	origSha256 := sha256.Sum256(orig)
+	orig[0] = '}' // corrupt data, should be a {
+	assert.NoError(t, err)
+
+	remoteStorage.SetMeta("targets", orig)
+
+	_, err = client.downloadSigned("targets", int64(len(orig)), origSha256[:])
+	assert.IsType(t, ErrChecksumMismatch{}, err)
+}
+
+func TestChecksumMatch(t *testing.T) {
+	repo := tuf.NewTufRepo(nil, nil)
+	localStorage := store.NewMemoryStore(nil, nil)
+	remoteStorage := store.NewMemoryStore(nil, nil)
+	client := NewClient(repo, remoteStorage, nil, localStorage)
+
+	sampleTargets := data.NewTargets()
+	orig, err := json.Marshal(sampleTargets)
+	origSha256 := sha256.Sum256(orig)
+	assert.NoError(t, err)
+
+	remoteStorage.SetMeta("targets", orig)
+
+	_, err = client.downloadSigned("targets", int64(len(orig)), origSha256[:])
+	assert.NoError(t, err)
+}
+
+func TestDownloadTargetsHappy(t *testing.T) {
+	kdb := keys.NewDB()
+	cs := signed.NewEd25519()
+	repo := tuf.NewTufRepo(kdb, cs)
+	localStorage := store.NewMemoryStore(nil, nil)
+	remoteStorage := store.NewMemoryStore(nil, nil)
+	client := NewClient(repo, remoteStorage, kdb, localStorage)
+
+	// set up targets key and role
+	targetsKey, err := cs.Create("targets", data.ED25519Key)
+	assert.NoError(t, err)
+	targetsRole, err := data.NewRole("targets", 1, []string{targetsKey.ID()}, nil, nil)
+	assert.NoError(t, err)
+	kdb.AddKey(targetsKey)
+	kdb.AddRole(targetsRole)
+
+	// create and "upload" sample targets
+	sampleTargets := data.NewTargets()
+	repo.Targets["targets"] = sampleTargets
+	signedOrig, err := repo.SignTargets("targets", data.DefaultExpires("targets"), nil)
+	assert.NoError(t, err)
+	orig, err := json.Marshal(signedOrig)
+	assert.NoError(t, err)
+	origSha256 := sha256.Sum256(orig)
+	err = remoteStorage.SetMeta("targets", orig)
+	assert.NoError(t, err)
+
+	// create local snapshot with targets file
+	snap := data.SignedSnapshot{
+		Signed: data.Snapshot{
+			Meta: data.Files{
+				"targets": data.FileMeta{
+					Length: int64(len(orig)),
+					Hashes: data.Hashes{
+						"sha256": origSha256[:],
+					},
+				},
+			},
+		},
+	}
+
+	// create local root to set ConsistentSnapshot field
+	root := data.SignedRoot{
+		Signed: data.Root{
+			ConsistentSnapshot: false,
+		},
+	}
+
+	repo.Root = &root
+	repo.Snapshot = &snap
+
+	err = client.downloadTargets("targets")
+	assert.NoError(t, err)
+}
+
+func TestDownloadTargetChecksumMismatch(t *testing.T) {
+	kdb := keys.NewDB()
+	cs := signed.NewEd25519()
+	repo := tuf.NewTufRepo(kdb, cs)
+	localStorage := store.NewMemoryStore(nil, nil)
+	remoteStorage := store.NewMemoryStore(nil, nil)
+	client := NewClient(repo, remoteStorage, kdb, localStorage)
+
+	// set up targets key and role
+	targetsKey, err := cs.Create("targets", data.ED25519Key)
+	assert.NoError(t, err)
+	targetsRole, err := data.NewRole("targets", 1, []string{targetsKey.ID()}, nil, nil)
+	assert.NoError(t, err)
+	kdb.AddKey(targetsKey)
+	kdb.AddRole(targetsRole)
+
+	// create and "upload" sample targets
+	sampleTargets := data.NewTargets()
+	repo.Targets["targets"] = sampleTargets
+	signedOrig, err := repo.SignTargets("targets", data.DefaultExpires("targets"), nil)
+	assert.NoError(t, err)
+	orig, err := json.Marshal(signedOrig)
+	assert.NoError(t, err)
+	origSha256 := sha256.Sum256(orig)
+	orig[0] = '}' // corrupt data, should be a {
+	err = remoteStorage.SetMeta("targets", orig)
+	assert.NoError(t, err)
+
+	// create local snapshot with targets file
+	snap := data.SignedSnapshot{
+		Signed: data.Snapshot{
+			Meta: data.Files{
+				"targets": data.FileMeta{
+					Length: int64(len(orig)),
+					Hashes: data.Hashes{
+						"sha256": origSha256[:],
+					},
+				},
+			},
+		},
+	}
+
+	// create local root to set ConsistentSnapshot field
+	root := data.SignedRoot{
+		Signed: data.Root{
+			ConsistentSnapshot: false,
+		},
+	}
+
+	repo.Root = &root
+	repo.Snapshot = &snap
+
+	err = client.downloadTargets("targets")
+	assert.IsType(t, ErrChecksumMismatch{}, err)
+}
