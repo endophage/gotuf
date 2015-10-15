@@ -175,7 +175,7 @@ func (c *Client) downloadRoot() error {
 	var s *data.Signed
 	var raw []byte
 	if download {
-		s, err = c.downloadSigned(role, size, expectedSha256)
+		raw, s, err = c.downloadSigned(role, size, expectedSha256)
 		if err != nil {
 			return err
 		}
@@ -341,7 +341,7 @@ func (c *Client) downloadSnapshot() error {
 	}
 	var s *data.Signed
 	if download {
-		s, err = c.downloadSigned(role, size, expectedSha256)
+		raw, s, err = c.downloadSigned(role, size, expectedSha256)
 		if err != nil {
 			return err
 		}
@@ -397,22 +397,22 @@ func (c *Client) downloadTargets(role string) error {
 	return nil
 }
 
-func (c *Client) downloadSigned(role string, size int64, expectedSha256 []byte) (*data.Signed, error) {
+func (c *Client) downloadSigned(role string, size int64, expectedSha256 []byte) ([]byte, *data.Signed, error) {
 	logrus.Debugf("downloading new %s", role)
 	raw, err := c.remote.GetMeta(role, size)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	genHash := sha256.Sum256(raw)
 	if !bytes.Equal(genHash[:], expectedSha256) {
-		return nil, ErrChecksumMismatch{role: role}
+		return nil, nil, ErrChecksumMismatch{role: role}
 	}
 	s := &data.Signed{}
 	err = json.Unmarshal(raw, s)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return s, nil
+	return raw, s, nil
 }
 
 func (c Client) GetTargetsFile(role string, keyIDs []string, snapshotMeta data.Files, consistent bool, threshold int) (*data.Signed, error) {
@@ -460,7 +460,7 @@ func (c Client) GetTargetsFile(role string, keyIDs []string, snapshotMeta data.F
 		if err != nil {
 			return nil, err
 		}
-		s, err = c.downloadSigned(rolePath, size, expectedSha256)
+		raw, s, err = c.downloadSigned(rolePath, size, expectedSha256)
 		if err != nil {
 			return nil, err
 		}

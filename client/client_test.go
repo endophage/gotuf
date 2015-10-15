@@ -243,7 +243,7 @@ func TestChecksumMismatch(t *testing.T) {
 
 	remoteStorage.SetMeta("targets", orig)
 
-	_, err = client.downloadSigned("targets", int64(len(orig)), origSha256[:])
+	_, _, err = client.downloadSigned("targets", int64(len(orig)), origSha256[:])
 	assert.IsType(t, ErrChecksumMismatch{}, err)
 }
 
@@ -260,7 +260,7 @@ func TestChecksumMatch(t *testing.T) {
 
 	remoteStorage.SetMeta("targets", orig)
 
-	_, err = client.downloadSigned("targets", int64(len(orig)), origSha256[:])
+	_, _, err = client.downloadSigned("targets", int64(len(orig)), origSha256[:])
 	assert.NoError(t, err)
 }
 
