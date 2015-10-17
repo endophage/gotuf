@@ -261,8 +261,7 @@ func (c *Client) downloadTimestamp() error {
 	}
 	// unlike root, targets and snapshot, always try and download timestamps
 	// from remote, only using the cache one if we couldn't reach remote.
-	raw, err := c.remote.GetMeta(role, maxSize)
-	var s *data.Signed
+	raw, s, err := c.downloadSigned(role, maxSize, nil)
 	if err != nil || len(raw) == 0 {
 		if err, ok := err.(store.ErrMetaNotFound); ok {
 			return err
@@ -279,11 +278,6 @@ func (c *Client) downloadTimestamp() error {
 		s = old
 	} else {
 		download = true
-		s = &data.Signed{}
-		err = json.Unmarshal(raw, s)
-		if err != nil {
-			return err
-		}
 	}
 	err = signed.Verify(s, role, version, c.keysDB)
 	if err != nil {
@@ -398,13 +392,12 @@ func (c *Client) downloadTargets(role string) error {
 }
 
 func (c *Client) downloadSigned(role string, size int64, expectedSha256 []byte) ([]byte, *data.Signed, error) {
-	logrus.Debugf("downloading new %s", role)
 	raw, err := c.remote.GetMeta(role, size)
 	if err != nil {
 		return nil, nil, err
 	}
 	genHash := sha256.Sum256(raw)
-	if !bytes.Equal(genHash[:], expectedSha256) {
+	if expectedSha256 != nil && !bytes.Equal(genHash[:], expectedSha256) {
 		return nil, nil, ErrChecksumMismatch{role: role}
 	}
 	s := &data.Signed{}
