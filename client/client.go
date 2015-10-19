@@ -299,10 +299,13 @@ func (c *Client) downloadTimestamp() error {
 func (c *Client) downloadSnapshot() error {
 	logrus.Debug("downloadSnapshot")
 	role := data.RoleName("snapshot")
+	if c.local.Timestamp == nil {
+		return ErrMissingMeta{role: "snapshot"}
+	}
 	size := c.local.Timestamp.Signed.Meta[role].Length
 	expectedSha256, ok := c.local.Timestamp.Signed.Meta[role].Hashes["sha256"]
 	if !ok {
-		return fmt.Errorf("Sha256 is currently the only hash supported by this client. No Sha256 found for snapshot")
+		return ErrMissingMeta{role: "snapshot"}
 	}
 
 	var download bool
@@ -367,6 +370,9 @@ func (c *Client) downloadSnapshot() error {
 // including delegates roles.
 func (c *Client) downloadTargets(role string) error {
 	role = data.RoleName(role) // this will really only do something for base targets role
+	if c.local.Snapshot == nil {
+		return ErrMissingMeta{role: role}
+	}
 	snap := c.local.Snapshot.Signed
 	root := c.local.Root.Signed
 	r := c.keysDB.GetRole(role)
@@ -412,11 +418,11 @@ func (c Client) GetTargetsFile(role string, keyIDs []string, snapshotMeta data.F
 	// require role exists in snapshots
 	roleMeta, ok := snapshotMeta[role]
 	if !ok {
-		return nil, fmt.Errorf("Snapshot does not contain target role")
+		return nil, ErrMissingMeta{role: role}
 	}
 	expectedSha256, ok := snapshotMeta[role].Hashes["sha256"]
 	if !ok {
-		return nil, fmt.Errorf("Sha256 is currently the only hash supported by this client. No Sha256 found for targets role %s", role)
+		return nil, ErrMissingMeta{role: role}
 	}
 
 	// try to get meta file from content addressed cache
