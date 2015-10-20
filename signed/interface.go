@@ -22,9 +22,6 @@ type KeyService interface {
 	// future features
 	Create(role string, algorithm data.KeyAlgorithm) (data.PublicKey, error)
 
-	// GetKey retrieves the public key if present, otherwise it returns nil
-	GetKey(keyID string) data.PublicKey
-
 	// RemoveKey deletes the specified key
 	RemoveKey(keyID string) error
 }

@@ -28,13 +28,6 @@ func (mts *FailingCryptoService) Create(_ string, _ data.KeyAlgorithm) (data.Pub
 	return mts.testKey, nil
 }
 
-func (mts *FailingCryptoService) GetKey(keyID string) data.PublicKey {
-	if keyID == "testID" {
-		return mts.testKey
-	}
-	return nil
-}
-
 func (mts *FailingCryptoService) RemoveKey(keyID string) error {
 	return nil
 }
@@ -53,13 +46,6 @@ func (mts *MockCryptoService) Sign(role string, pubKeys []data.PublicKey, _ []by
 
 func (mts *MockCryptoService) Create(_ string, _ data.KeyAlgorithm) (data.PublicKey, error) {
 	return mts.testKey, nil
-}
-
-func (mts *MockCryptoService) GetKey(keyID string) data.PublicKey {
-	if keyID == "testID" {
-		return mts.testKey
-	}
-	return nil
 }
 
 func (mts *MockCryptoService) RemoveKey(keyID string) error {

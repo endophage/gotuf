@@ -69,7 +69,3 @@ func (e *Ed25519) PublicKeys(keyIDs ...string) (map[string]data.PublicKey, error
 	}
 	return k, nil
 }
-
-func (e *Ed25519) GetKey(keyID string) data.PublicKey {
-	return data.PublicKeyFromPrivate(e.keys[keyID])
-}
