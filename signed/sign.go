@@ -10,7 +10,7 @@ import (
 
 // Sign takes a data.Signed and a key, calculated and adds the signature
 // to the data.Signed
-func Sign(service CryptoService, s *data.Signed, keys ...data.PublicKey) error {
+func Sign(service CryptoService, role string, s *data.Signed, keys ...data.PublicKey) error {
 	logrus.Debugf("sign called with %d keys", len(keys))
 	signatures := make([]data.Signature, 0, len(s.Signatures)+1)
 	keyIDMemb := make(map[string]struct{})
@@ -27,7 +27,7 @@ func Sign(service CryptoService, s *data.Signed, keys ...data.PublicKey) error {
 		}
 		signatures = append(signatures, sig)
 	}
-	newSigs, err := service.Sign(keyIDs, s.Signed)
+	newSigs, err := service.Sign(role, keys, s.Signed)
 	if err != nil {
 		return err
 	}

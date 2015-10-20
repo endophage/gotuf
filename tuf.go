@@ -572,7 +572,7 @@ func (tr TufRepo) sign(signedData *data.Signed, role data.Role, cryptoService si
 	if cryptoService == nil {
 		cryptoService = tr.cryptoService
 	}
-	err := signed.Sign(cryptoService, signedData, ks...)
+	err := signed.Sign(cryptoService, role.Name, signedData, ks...)
 	if err != nil {
 		return nil, err
 	}

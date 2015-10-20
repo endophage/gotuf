@@ -9,7 +9,7 @@ import (
 type SigningService interface {
 	// Sign takes a slice of keyIDs and a piece of data to sign
 	// and returns a slice of signatures and an error
-	Sign(keyIDs []string, data []byte) ([]data.Signature, error)
+	Sign(role string, publicKeys []data.PublicKey, data []byte) ([]data.Signature, error)
 }
 
 // KeyService provides management of keys locally. It will never
