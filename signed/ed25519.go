@@ -29,14 +29,14 @@ func (e *Ed25519) RemoveKey(keyID string) error {
 	return nil
 }
 
-func (e *Ed25519) Sign(keyIDs []string, toSign []byte) ([]data.Signature, error) {
-	signatures := make([]data.Signature, 0, len(keyIDs))
-	for _, kID := range keyIDs {
+func (e *Ed25519) Sign(role string, pubKeys []data.PublicKey, toSign []byte) ([]data.Signature, error) {
+	signatures := make([]data.Signature, 0, len(pubKeys))
+	for _, k := range pubKeys {
 		priv := [ed25519.PrivateKeySize]byte{}
-		copy(priv[:], e.keys[kID].Private())
+		copy(priv[:], e.keys[k.ID()].Private())
 		sig := ed25519.Sign(&priv, toSign)
 		signatures = append(signatures, data.Signature{
-			KeyID:     kID,
+			KeyID:     k.ID(),
 			Method:    data.EDDSASignature,
 			Signature: sig[:],
 		})

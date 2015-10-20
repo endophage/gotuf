@@ -71,7 +71,7 @@ func Test(t *testing.T) {
 			name: "more than enough signatures",
 			mut: func(t *test) {
 				k, _ := cryptoService.Create("root", data.ED25519Key)
-				Sign(cryptoService, t.s, k)
+				Sign(cryptoService, "root", t.s, k)
 				t.keys = append(t.keys, k)
 				t.roles["root"].KeyIDs = append(t.roles["root"].KeyIDs, k.ID())
 			},
@@ -88,14 +88,14 @@ func Test(t *testing.T) {
 			name: "unknown key",
 			mut: func(t *test) {
 				k, _ := cryptoService.Create("root", data.ED25519Key)
-				Sign(cryptoService, t.s, k)
+				Sign(cryptoService, "root", t.s, k)
 			},
 		},
 		{
 			name: "unknown key below threshold",
 			mut: func(t *test) {
 				k, _ := cryptoService.Create("root", data.ED25519Key)
-				Sign(cryptoService, t.s, k)
+				Sign(cryptoService, "root", t.s, k)
 				t.roles["root"].Threshold = 2
 			},
 			err: ErrRoleThreshold{},
@@ -104,7 +104,7 @@ func Test(t *testing.T) {
 			name: "unknown keys in db",
 			mut: func(t *test) {
 				k, _ := cryptoService.Create("root", data.ED25519Key)
-				Sign(cryptoService, t.s, k)
+				Sign(cryptoService, "root", t.s, k)
 				t.keys = append(t.keys, k)
 			},
 		},
@@ -112,7 +112,7 @@ func Test(t *testing.T) {
 			name: "unknown keys in db below threshold",
 			mut: func(t *test) {
 				k, _ := cryptoService.Create("root", data.ED25519Key)
-				Sign(cryptoService, t.s, k)
+				Sign(cryptoService, "root", t.s, k)
 				t.keys = append(t.keys, k)
 				t.roles["root"].Threshold = 2
 			},
@@ -156,7 +156,7 @@ func Test(t *testing.T) {
 			b, err := json.MarshalCanonical(meta)
 			assert.NoError(t, err)
 			s := &data.Signed{Signed: b}
-			Sign(cryptoService, s, k)
+			Sign(cryptoService, "root", s, k)
 			run.s = s
 			run.keys = []data.PublicKey{k}
 		}
