@@ -454,6 +454,30 @@ func TestUpdateDownloadRootHappy(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestUpdateDownloadRootBadChecksum(t *testing.T) {
+	kdb, repo, _ := testutils.EmptyRepo()
+	localStorage := store.NewMemoryStore(nil, nil)
+	remoteStorage := store.NewMemoryStore(nil, nil)
+	client := NewClient(repo, remoteStorage, kdb, localStorage)
+
+	// sign snapshot to make sure we have a checksum for root
+	_, err := repo.SignSnapshot(data.DefaultExpires("snapshot"), nil)
+	assert.NoError(t, err)
+
+	// create and "upload" sample root, snapshot, and timestamp
+	signedOrig, err := repo.SignRoot(data.DefaultExpires("root"), nil)
+	assert.NoError(t, err)
+	orig, err := json.Marshal(signedOrig)
+	assert.NoError(t, err)
+	err = remoteStorage.SetMeta("root", orig)
+	assert.NoError(t, err)
+
+	// don't sign snapshot again to ensure checksum is out of date (bad)
+
+	err = client.downloadRoot()
+	assert.IsType(t, ErrChecksumMismatch{}, err)
+}
+
 func TestDownloadTimestampHappy(t *testing.T) {
 	kdb, repo, _ := testutils.EmptyRepo()
 	localStorage := store.NewMemoryStore(nil, nil)
@@ -537,4 +561,28 @@ func TestDownloadSnapshotNoChecksum(t *testing.T) {
 
 	err = client.downloadSnapshot()
 	assert.IsType(t, ErrMissingMeta{}, err)
+}
+
+func TestDownloadSnapshotBadChecksum(t *testing.T) {
+	kdb, repo, _ := testutils.EmptyRepo()
+	localStorage := store.NewMemoryStore(nil, nil)
+	remoteStorage := store.NewMemoryStore(nil, nil)
+	client := NewClient(repo, remoteStorage, kdb, localStorage)
+
+	// sign timestamp to ensure it has a checksum for snapshot
+	_, err := repo.SignTimestamp(data.DefaultExpires("timestamp"), nil)
+	assert.NoError(t, err)
+
+	// create and "upload" sample snapshot and timestamp
+	signedOrig, err := repo.SignSnapshot(data.DefaultExpires("snapshot"), nil)
+	assert.NoError(t, err)
+	orig, err := json.Marshal(signedOrig)
+	assert.NoError(t, err)
+	err = remoteStorage.SetMeta("snapshot", orig)
+	assert.NoError(t, err)
+
+	// by not signing timestamp again we ensure it has the wrong checksum
+
+	err = client.downloadSnapshot()
+	assert.IsType(t, ErrChecksumMismatch{}, err)
 }
