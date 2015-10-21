@@ -1,10 +1,15 @@
 package signed
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/pem"
 	"testing"
 
+	"github.com/docker/notary/trustmanager"
 	"github.com/endophage/gotuf/data"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -39,7 +44,6 @@ func (mts *FailingCryptoService) RemoveKey(keyID string) error {
 	return nil
 }
 
-
 type MockCryptoService struct {
 	testKey data.PublicKey
 }
@@ -69,6 +73,27 @@ func (mts *MockCryptoService) RemoveKey(keyID string) error {
 
 var _ CryptoService = &MockCryptoService{}
 
+type StrictMockCryptoService struct {
+	MockCryptoService
+}
+
+func (mts *StrictMockCryptoService) Sign(keyIDs []string, _ []byte) ([]data.Signature, error) {
+	sigs := make([]data.Signature, 0, len(keyIDs))
+	for _, keyID := range keyIDs {
+		if keyID == mts.testKey.ID() {
+			sigs = append(sigs, data.Signature{KeyID: keyID})
+		}
+	}
+	return sigs, nil
+}
+
+func (mts *StrictMockCryptoService) GetKey(keyID string) data.PublicKey {
+	if keyID == mts.testKey.ID() {
+		return mts.testKey
+	}
+	return nil
+}
+
 // Test signing and ensure the expected signature is added
 func TestBasicSign(t *testing.T) {
 	testKey, _ := pem.Decode([]byte(testKeyPEM1))
@@ -89,7 +114,6 @@ func TestBasicSign(t *testing.T) {
 	if testData.Signatures[0].KeyID != testKeyID1 {
 		t.Fatalf("Wrong signature ID returned: %s", testData.Signatures[0].KeyID)
 	}
-
 }
 
 // Test signing with the same key multiple times only registers a single signature
@@ -168,4 +192,39 @@ func TestCreate(t *testing.T) {
 	if key.ID() != testKeyID1 {
 		t.Fatalf("Expected key ID not found: %s", key.ID())
 	}
+}
+
+func TestSignWithX509(t *testing.T) {
+	// generate a key becase we need a cert
+	privKey, err := rsa.GenerateKey(rand.Reader, 1024)
+	assert.NoError(t, err)
+
+	// make a RSA x509 key
+	template, err := trustmanager.NewCertificate("test")
+	assert.NoError(t, err)
+
+	derBytes, err := x509.CreateCertificate(
+		rand.Reader, template, template, &privKey.PublicKey, privKey)
+	assert.NoError(t, err)
+
+	cert, err := x509.ParseCertificate(derBytes)
+	assert.NoError(t, err)
+
+	tufRSAx509Key := trustmanager.CertToKey(cert)
+	assert.NoError(t, err)
+
+	// make a data.PublicKey from the generated private key
+	pubBytes, err := x509.MarshalPKIXPublicKey(&privKey.PublicKey)
+	assert.NoError(t, err)
+	tufRSAKey := data.NewPublicKey(data.RSAKey, pubBytes)
+
+	// test signing against a service that only recognizes a RSAKey (not
+	// RSAx509 key)
+	mockCryptoService := &StrictMockCryptoService{MockCryptoService{tufRSAKey}}
+	testData := data.Signed{}
+	err = Sign(mockCryptoService, &testData, tufRSAx509Key)
+	assert.NoError(t, err)
+
+	assert.Len(t, testData.Signatures, 1)
+	assert.Equal(t, tufRSAx509Key.ID(), testData.Signatures[0].KeyID)
 }

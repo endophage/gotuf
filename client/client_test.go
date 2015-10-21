@@ -20,7 +20,7 @@ import (
 func TestRotation(t *testing.T) {
 	kdb := keys.NewDB()
 	signer := signed.NewEd25519()
-	repo := tuf.NewTufRepo(kdb, signer)
+	repo := tuf.NewRepo(kdb, signer)
 	remote := store.NewMemoryStore(nil, nil)
 	cache := store.NewMemoryStore(nil, nil)
 
@@ -75,7 +75,7 @@ func TestRotationNewSigMissing(t *testing.T) {
 	logrus.SetLevel(logrus.DebugLevel)
 	kdb := keys.NewDB()
 	signer := signed.NewEd25519()
-	repo := tuf.NewTufRepo(kdb, signer)
+	repo := tuf.NewRepo(kdb, signer)
 	remote := store.NewMemoryStore(nil, nil)
 	cache := store.NewMemoryStore(nil, nil)
 
@@ -136,7 +136,7 @@ func TestRotationOldSigMissing(t *testing.T) {
 	logrus.SetLevel(logrus.DebugLevel)
 	kdb := keys.NewDB()
 	signer := signed.NewEd25519()
-	repo := tuf.NewTufRepo(kdb, signer)
+	repo := tuf.NewRepo(kdb, signer)
 	remote := store.NewMemoryStore(nil, nil)
 	cache := store.NewMemoryStore(nil, nil)
 
@@ -194,7 +194,7 @@ func TestRotationOldSigMissing(t *testing.T) {
 }
 
 func TestCheckRootExpired(t *testing.T) {
-	repo := tuf.NewTufRepo(nil, nil)
+	repo := tuf.NewRepo(nil, nil)
 	storage := store.NewMemoryStore(nil, nil)
 	client := NewClient(repo, storage, nil, storage)
 
@@ -231,7 +231,7 @@ func TestCheckRootExpired(t *testing.T) {
 }
 
 func TestChecksumMismatch(t *testing.T) {
-	repo := tuf.NewTufRepo(nil, nil)
+	repo := tuf.NewRepo(nil, nil)
 	localStorage := store.NewMemoryStore(nil, nil)
 	remoteStorage := store.NewMemoryStore(nil, nil)
 	client := NewClient(repo, remoteStorage, nil, localStorage)
@@ -249,7 +249,7 @@ func TestChecksumMismatch(t *testing.T) {
 }
 
 func TestChecksumMatch(t *testing.T) {
-	repo := tuf.NewTufRepo(nil, nil)
+	repo := tuf.NewRepo(nil, nil)
 	localStorage := store.NewMemoryStore(nil, nil)
 	remoteStorage := store.NewMemoryStore(nil, nil)
 	client := NewClient(repo, remoteStorage, nil, localStorage)
@@ -266,7 +266,7 @@ func TestChecksumMatch(t *testing.T) {
 }
 
 func TestSizeMismatchLong(t *testing.T) {
-	repo := tuf.NewTufRepo(nil, nil)
+	repo := tuf.NewRepo(nil, nil)
 	localStorage := store.NewMemoryStore(nil, nil)
 	remoteStorage := store.NewMemoryStore(nil, nil)
 	client := NewClient(repo, remoteStorage, nil, localStorage)
@@ -289,7 +289,7 @@ func TestSizeMismatchLong(t *testing.T) {
 }
 
 func TestSizeMismatchShort(t *testing.T) {
-	repo := tuf.NewTufRepo(nil, nil)
+	repo := tuf.NewRepo(nil, nil)
 	localStorage := store.NewMemoryStore(nil, nil)
 	remoteStorage := store.NewMemoryStore(nil, nil)
 	client := NewClient(repo, remoteStorage, nil, localStorage)

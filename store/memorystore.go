@@ -10,7 +10,9 @@ import (
 	"github.com/endophage/gotuf/utils"
 )
 
-func NewMemoryStore(meta map[string][]byte, files map[string][]byte) *memoryStore {
+// NewMemoryStore returns a MetadataStore that operates entirely in memory.
+// Very useful for testing
+func NewMemoryStore(meta map[string][]byte, files map[string][]byte) RemoteStore {
 	if meta == nil {
 		meta = make(map[string][]byte)
 	}
@@ -37,9 +39,8 @@ func (m *memoryStore) GetMeta(name string, size int64) ([]byte, error) {
 			return d, nil
 		}
 		return d[:size], nil
-	} else {
-		return nil, ErrMetaNotFound{}
 	}
+	return nil, ErrMetaNotFound{}
 }
 
 func (m *memoryStore) SetMeta(name string, meta []byte) error {
@@ -75,7 +76,7 @@ func (m *memoryStore) WalkStagedTargets(paths []string, targetsFn targetsWalkFun
 	for _, path := range paths {
 		dat, ok := m.files[path]
 		if !ok {
-			return errors.ErrFileNotFound{path}
+			return errors.ErrFileNotFound{Path: path}
 		}
 		meta, err := data.NewFileMeta(bytes.NewReader(dat), "sha256")
 		if err != nil {

@@ -13,7 +13,7 @@ import (
 	"github.com/endophage/gotuf/signed"
 )
 
-func initRepo(t *testing.T, cryptoService signed.CryptoService, keyDB *keys.KeyDB) *TufRepo {
+func initRepo(t *testing.T, cryptoService signed.CryptoService, keyDB *keys.KeyDB) *Repo {
 	rootKey, err := cryptoService.Create("root", data.ED25519Key)
 	if err != nil {
 		t.Fatal(err)
@@ -70,7 +70,7 @@ func initRepo(t *testing.T, cryptoService signed.CryptoService, keyDB *keys.KeyD
 	keyDB.AddRole(snapshotRole)
 	keyDB.AddRole(timestampRole)
 
-	repo := NewTufRepo(keyDB, cryptoService)
+	repo := NewRepo(keyDB, cryptoService)
 	err = repo.InitRepo(false)
 	if err != nil {
 		t.Fatal(err)
@@ -78,7 +78,7 @@ func initRepo(t *testing.T, cryptoService signed.CryptoService, keyDB *keys.KeyD
 	return repo
 }
 
-func writeRepo(t *testing.T, dir string, repo *TufRepo) {
+func writeRepo(t *testing.T, dir string, repo *Repo) {
 	//err := os.Remove(dir)
 	//if err != nil {
 	//	t.Fatal(err)
@@ -94,7 +94,7 @@ func writeRepo(t *testing.T, dir string, repo *TufRepo) {
 	rootJSON, _ := json.Marshal(signedRoot)
 	ioutil.WriteFile(dir+"/root.json", rootJSON, 0755)
 
-	for r, _ := range repo.Targets {
+	for r := range repo.Targets {
 		signedTargets, err := repo.SignTargets(r, data.DefaultExpires("targets"), nil)
 		if err != nil {
 			t.Fatal(err)

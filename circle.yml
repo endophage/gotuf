@@ -1,0 +1,75 @@
+# Pony-up!
+machine:
+  pre:
+  # Install gvm
+    - bash < <(curl -s -S -L https://raw.githubusercontent.com/moovweb/gvm/1.0.22/binscripts/gvm-installer)
+
+  post:
+  # Install many go versions
+    - gvm install go1.5.1 -B --name=stable
+
+  environment:
+  # Convenient shortcuts to "common" locations
+    CHECKOUT: /home/ubuntu/$CIRCLE_PROJECT_REPONAME
+    BASE_DIR: src/github.com/endophage/gotuf
+  # Trick circle brainflat "no absolute path" behavior
+    BASE_STABLE: ../../../$HOME/.gvm/pkgsets/stable/global/$BASE_DIR
+  # Workaround Circle parsing dumb bugs and/or YAML wonkyness
+    CIRCLE_PAIN: "mode: set"
+
+  hosts:
+  # Not used yet
+    fancy: 127.0.0.1
+
+dependencies:
+  pre:
+  # Copy the code to the gopath of all go versions
+    - >
+      gvm use stable &&
+      mkdir -p "$(dirname $BASE_STABLE)" &&
+      cp -R "$CHECKOUT" "$BASE_STABLE"
+
+  override:
+  # Install dependencies for every copied clone/go version
+    - gvm use stable && go get github.com/tools/godep:
+        pwd: $BASE_STABLE
+
+  post:
+  # For the stable go version, additionally install linting tools
+    - >
+      gvm use stable &&
+      go get github.com/axw/gocov/gocov github.com/mattn/goveralls github.com/golang/lint/golint
+test:
+  pre:
+  # Output the go versions we are going to test
+    - gvm use stable && go version
+
+  # FMT
+    - gvm use stable && make fmt:
+        pwd: $BASE_STABLE
+
+  # VET
+    - gvm use stable && make vet:
+        pwd: $BASE_STABLE
+
+  # LINT
+    - gvm use stable && make lint:
+        pwd: $BASE_STABLE
+
+  override:
+  # Test stable, and report
+  # Preset the goverall report file
+    - echo "$CIRCLE_PAIN" > ~/goverage.report
+    - gvm use stable; go list ./... | xargs -L 1 -I{} rm -f $GOPATH/src/{}/coverage.out:
+        pwd: $BASE_STABLE
+
+    - gvm use stable; go list ./... | xargs -L 1 -I{} godep go test -race -test.short -coverprofile=$GOPATH/src/{}/coverage.out {}:
+        timeout: 600
+        pwd: $BASE_STABLE
+
+  # post:
+  # Aggregate and report to coveralls
+  #   - gvm use stable; go list ./... | xargs -L 1 -I{} cat "$GOPATH/src/{}/coverage.out" | grep -v "$CIRCLE_PAIN" >> ~/goverage.report:
+  #       pwd: $BASE_STABLE
+  #   - gvm use stable; goveralls -service circleci -coverprofile=/home/ubuntu/goverage.report -repotoken $COVERALLS_TOKEN:
+  #       pwd: $BASE_STABLE
