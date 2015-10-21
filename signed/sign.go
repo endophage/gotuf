@@ -27,14 +27,14 @@ func Sign(service CryptoService, s *data.Signed, keys ...data.PublicKey) error {
 	)
 
 	for _, key := range keys {
-		kID, err := canonicalKeyID(key)
+		keyID, err := canonicalKeyID(key)
 		if err != nil {
 			continue
 		}
 		keyIDMemb[key.ID()] = struct{}{}
 		keyIDs = append(keyIDs, idPair{
 			scopedKeyID:    key.ID(),
-			canonicalKeyID: kID,
+			canonicalKeyID: keyID,
 		})
 	}
 
@@ -56,7 +56,7 @@ func Sign(service CryptoService, s *data.Signed, keys ...data.PublicKey) error {
 	}
 	if len(signatures) < 1 {
 		return errors.ErrInsufficientSignatures{
-			Name: fmt.Sprint("Cryptoservice failed to produce any signatures for keys with IDs: %v", keyIDs),
+			Name: fmt.Sprintf("Cryptoservice failed to produce any signatures for keys with IDs: %v", keyIDs),
 			Err:  nil,
 		}
 	}
