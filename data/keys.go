@@ -1,31 +1,30 @@
 package data
 
 import (
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"io"
+	"math/big"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/jfrazelle/go/canonical/json"
 )
 
-// Key is the minimal interface for a public key. It is declared
-// independently of PublicKey for composability.
-type Key interface {
-	ID() string
-	Algorithm() KeyAlgorithm
-	Public() []byte
-}
-
 // PublicKey is the necessary interface for public keys
 type PublicKey interface {
-	Key
+	ID() string
+	Algorithm() KeyAlgorithm
+	Public() PublicKey
 }
 
 // PrivateKey adds the ability to access the private key
 type PrivateKey interface {
-	Key
-
-	Private() []byte
+	PublicKey // keep this first to prefer PublicKey.Public over Crypto.Signer.Public
+	Private() ([]byte, error)
+	crypto.Signer
 }
 
 // KeyPair holds the public and private key bytes
@@ -45,14 +44,22 @@ type TUFKey struct {
 	Value KeyPair      `json:"keyval"`
 }
 
+// PrivateTUFKey implements the private key interface
+type PrivateTUFKey struct {
+	TUFKey // keep this first to prefer TUFKey.Public over crypto.Signer.Public
+	crypto.Signer
+}
+
 // NewPrivateKey instantiates a new TUFKey with the private key component
 // populated
-func NewPrivateKey(algorithm KeyAlgorithm, public, private []byte) *TUFKey {
-	return &TUFKey{
-		Type: algorithm,
-		Value: KeyPair{
-			Public:  public,
-			Private: private,
+func NewPrivateKey(algorithm KeyAlgorithm, public []byte, private crypto.Signer) PrivateKey {
+	return &PrivateTUFKey{
+		TUFKey: TUFKey{
+			Type: algorithm,
+			Value: KeyPair{
+				Public:  public,
+				Private: private,
+			},
 		},
 	}
 }
@@ -81,9 +88,11 @@ func (k TUFKey) Public() []byte {
 	return k.Value.Public
 }
 
-// Private returns the private bytes
-func (k TUFKey) Private() []byte {
-	return k.Value.Private
+func (k PrivateTUFKey) Sign(random io.Reader, msg []byte, opts crypto.SignerOpts) (signature []byte, err error) {
+	if rand == nil {
+		rand = rand.Reader
+	}
+	return k.Signer.Sign(rand, msg, opts)
 }
 
 // NewPublicKey instantiates a new TUFKey where the private bytes are
@@ -98,14 +107,47 @@ func NewPublicKey(algorithm KeyAlgorithm, public []byte) PublicKey {
 	}
 }
 
-// PublicKeyFromPrivate returns a new TUFKey based on a private key, with
-// the private key bytes guaranteed to be nil.
-func PublicKeyFromPrivate(pk PrivateKey) PublicKey {
-	return &TUFKey{
-		Type: pk.Algorithm(),
-		Value: KeyPair{
-			Public:  pk.Public(),
-			Private: nil,
-		},
+type ECDSAPrivateKey struct {
+	ecdsa.PrivateKey
+}
+
+func (k ECDSAPrivateKey) Sign(random io.Reader, msg []byte, opts crypto.SignerOpts) (signature []byte, err error) {
+	sigASN1, err := k.PrivateKey.Sign(random, msg, opts)
+	// Use the ECDSA key to sign the data
+	sig := struct {
+		R *big.Int
+		S *big.Int
+	}{}
+	_, err := asn1.Unmarshal(sigASN1, &sig)
+	if err != nil {
+		return nil, err
 	}
+
+	rBytes, sBytes := sig.R.Bytes(), sig.S.Bytes()
+	octetLength := (k.PrivateKey.Params().BitSize + 7) >> 3
+
+	// MUST include leading zeros in the output
+	rBuf := make([]byte, octetLength-len(rBytes), octetLength)
+	sBuf := make([]byte, octetLength-len(sBytes), octetLength)
+
+	rBuf = append(rBuf, rBytes...)
+	sBuf = append(sBuf, sBytes...)
+
+	return append(rBuf, sBuf...), nil
+}
+
+func (k ECDSAPrivateKey) Private() ([]byte, error) {
+	ecdsaPrivKeyBytes, err := x509.MarshalECPrivateKey(k.PrivateKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal private key: %v", err)
+	}
+	return ecdsaPrivKeyBytes, nil
+}
+
+type RSAPrivateKey struct {
+	rsa.PrivateKey
+}
+
+func (k RSAPrivateKey) Private() ([]byte, error) {
+	return x509.MarshalPKCS1PrivateKey(rsaPrivKey), nil
 }

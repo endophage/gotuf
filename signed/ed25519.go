@@ -13,6 +13,22 @@ type Ed25519 struct {
 	keys map[string]data.PrivateKey
 }
 
+type Ed25519PrivateKey []byte
+
+func (k *Ed25519PrivateKey) Public() crypto.PublicKey {
+	return privKeyBytes[:ed25519.PublicKeySize]
+}
+
+func (k *Ed25519PrivateKey) Sign(rand io.Reader, msg []byte, opts SignerOpts) (signature []byte, err error) {
+	priv := [ed25519.PrivateKeySize]byte{}
+	copy(priv[:], k)
+	return ed25519.Sign(&priv, msg), nil
+}
+
+func (k *Ed25519PrivateKey) Private() ([]byte, error) {
+	return *k, nil
+}
+
 // NewEd25519 initializes a new empty Ed25519 CryptoService that operates
 // entirely in memory
 func NewEd25519() *Ed25519 {
