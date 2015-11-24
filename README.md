@@ -1,3 +1,7 @@
+# IMPORTANT
+
+This project has been merged into [Notary](https://github.com/docker/notary) as it made little sense for the core functionality and CLI to continue to be split between 2 repositories. The bulk of this code resides under the "tuf" directory within that project. All future work on this TUF implementation will take place there.
+
 # GOTUF 
 
 This is still a work in progress but will shortly be a fully compliant 
